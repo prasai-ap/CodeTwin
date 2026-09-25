@@ -125,7 +125,7 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
 
-    def test_demo_session_connects_snapshot_bob_review_and_failing_target_tests(self):
+    def test_demo_payment_regression_can_be_fixed_and_revalidated(self):
         created = client.post("/demo/payment-regression")
 
         self.assertEqual(created.status_code, 200)
@@ -152,6 +152,37 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(tested.json()["status"], "regression_detected")
         self.assertFalse(tested.json()["safe_to_merge"])
+
+        fixed_response = client.post(f"/analyses/{analysis_id}/demo-fix")
+        self.assertEqual(fixed_response.status_code, 200)
+        fixed = fixed_response.json()
+        self.assertEqual(fixed["status"], "awaiting_bob_review")
+        self.assertEqual(fixed["demo_scenario"], "payment_amount_regression_fixed")
+        self.assertEqual(fixed["parent_analysis_id"], analysis_id)
+        fixed_context = client.get(f"/analyses/{fixed['analysis_id']}/context").json()
+        self.assertIn("amount_cents=amount_cents", fixed_context["review_snapshot"]["app/payments/service.py"])
+        self.assertNotIn("amount_cents=amount_cents // 100", fixed_context["review_snapshot"]["app/payments/service.py"])
+
+        reviewed_fix = client.post(
+            f"/analyses/{fixed['analysis_id']}/bob-review",
+            json={
+                "confirmed_files": fixed["predicted_impact"]["files"],
+                "possible_files": [],
+                "not_affected_files": fixed["not_affected"],
+                "rationale": "The corrected payment service preserves cents through checkout.",
+            },
+        )
+        self.assertEqual(reviewed_fix.status_code, 200)
+        safe = client.post(f"/analyses/{fixed['analysis_id']}/run-tests", json={}).json()
+        self.assertEqual(safe["status"], "safe_to_merge")
+        self.assertTrue(safe["safe_to_merge"])
+
+        original_after_fix = client.get(f"/analyses/{analysis_id}/context").json()
+        self.assertEqual(original_after_fix["status"], "regression_detected")
+        self.assertIn(
+            "amount_cents=amount_cents // 100",
+            original_after_fix["review_snapshot"]["app/payments/service.py"],
+        )
 
     def test_frontend_development_origin_is_allowed(self):
         response = client.options(

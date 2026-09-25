@@ -31,6 +31,8 @@ Open this project in IBM Bob and keep the FastAPI service running. Create an ana
 
 The demo sessions are held in memory and reset when the API restarts. After Bob reviews the impact, call `POST /analyses/{analysis_id}/run-tests`; CodeTwin runs only the predicted tests from the captured snapshot in a temporary directory. It prefers pytest and falls back to unittest for the self-contained demo. A failed test reports `regression_detected`. CodeTwin reports `safe_to_merge` only when Bob has no unresolved possible impact, there are no Python parse errors, and every targeted test passes.
 
+After the payment demo detects its regression, `POST /analyses/{analysis_id}/demo-fix` creates a new corrected snapshot from that failed session. The corrected revision keeps its parent analysis linked, requires a fresh Bob review, and runs the targeted tests again; the original failed report remains available as evidence.
+
 The analyzer is deterministic and import based. Bob's semantic classifications are agent judgments and are not presented as deterministic analysis.
 
 ## Frontend dashboard
@@ -43,4 +45,4 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. Select **Analyze payment regression** to create the sample session. The dashboard shows the AST impact graph and analysis ID; ask IBM Bob to review that ID, then use the targeted test action or let Bob invoke the configured MCP tool. The merge status updates from the API as Bob's review and test results arrive. The frontend expects the API at `http://127.0.0.1:8000`; set `VITE_API_BASE_URL` in a local `.env` file to use another URL.
+Open `http://127.0.0.1:5173`. Select **Analyze payment regression** to create the sample session. The dashboard shows the AST impact graph and analysis ID; ask IBM Bob to review that ID, then use the targeted test action or let Bob invoke the configured MCP tool. If the test catches the regression, choose **Simulate fix & revalidate** to create the corrected demo revision, then ask Bob to review its new analysis ID and run its tests. The merge status updates from the API as Bob's review and test results arrive. The frontend expects the API at `http://127.0.0.1:8000`; set `VITE_API_BASE_URL` in a local `.env` file to use another URL.

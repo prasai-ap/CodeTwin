@@ -86,7 +86,7 @@ function shortPath(path: string) {
 
 function App() {
   const [report, setReport] = useState<AnalysisReport | null>(null);
-  const [busy, setBusy] = useState<'demo' | 'tests' | null>(null);
+  const [busy, setBusy] = useState<'demo' | 'tests' | 'revalidate' | null>(null);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -150,6 +150,23 @@ function App() {
     }
   }, [report]);
 
+  const simulateFixAndRevalidate = useCallback(async () => {
+    if (!report) return;
+    setBusy('revalidate');
+    setError('');
+    setCopied(false);
+    try {
+      const corrected = await apiRequest<AnalysisReport>(`/analyses/${report.analysis_id}/demo-fix`, {
+        method: 'POST',
+      });
+      setReport(corrected);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not create the corrected demo revision.');
+    } finally {
+      setBusy(null);
+    }
+  }, [report]);
+
   const copyAnalysisId = useCallback(async () => {
     if (!report) return;
     try {
@@ -165,6 +182,7 @@ function App() {
   const bobReview = report?.bob_review;
   const testResults = report?.test_results;
   const testFiles = testResults?.targeted_tests ?? report?.predicted_impact.tests ?? [];
+  const fixedDemo = report?.demo_scenario === 'payment_amount_regression_fixed';
 
   return (
     <div className="app-shell">
@@ -260,14 +278,16 @@ function App() {
             <section className="change-summary card-surface">
               <div className="change-file-icon"><Icon name="code" /></div>
               <div className="change-file-info">
-                <span className="section-kicker">PROPOSED CHANGE <span className="scenario-label">PAYMENT AMOUNT REGRESSION</span></span>
+                <span className="section-kicker">PROPOSED CHANGE <span className="scenario-label">{fixedDemo ? 'PAYMENT REGRESSION FIX' : 'PAYMENT AMOUNT REGRESSION'}</span></span>
                 <strong>{report.changed_files[0]}</strong>
-                <span className="change-description">Currency units are divided by 100 before the captured payment is stored.</span>
+                <span className="change-description">
+                  {fixedDemo ? 'The corrected payment flow preserves the amount in cents.' : 'Currency units are divided by 100 before the captured payment is stored.'}
+                </span>
               </div>
               <div className="change-diff" aria-label="Payment amount source change">
-                <code className="diff-before">amount_cents=amount_cents</code>
+                <code className="diff-before">{fixedDemo ? 'amount_cents=amount_cents // 100' : 'amount_cents=amount_cents'}</code>
                 <span>→</span>
-                <code className="diff-after">amount_cents=amount_cents // 100</code>
+                <code className="diff-after">{fixedDemo ? 'amount_cents=amount_cents' : 'amount_cents=amount_cents // 100'}</code>
               </div>
             </section>
 
@@ -379,10 +399,23 @@ function App() {
                   disabled={!bobReview || busy !== null || report.status !== 'awaiting_tests'}
                 >
                   {busy === 'tests' ? <span className="spinner" /> : <Icon name="test" />}
-                  {busy === 'tests' ? 'Running targeted tests…' : testResults?.status === 'failed' ? 'Re-run targeted tests' : 'Run targeted tests'}
+                  {busy === 'tests' ? 'Running targeted tests…' : report.status === 'regression_detected' ? 'Regression detected' : 'Run targeted tests'}
                 </button>
                 {!bobReview && <span className="button-hint">Complete the IBM Bob review before running tests.</span>}
                 {bobReview?.possible_impact.length ? <span className="button-hint">Resolve possible impact before Safe to Merge can be reported.</span> : null}
+                {report.status === 'regression_detected' && report.demo_scenario === 'payment_amount_regression' && (
+                  <div className="revalidation-action">
+                    <strong>Fix the detected payment regression</strong>
+                    <p>Start a corrected snapshot from this failed run. IBM Bob reviews the new revision before its tests can pass the merge gate.</p>
+                    <button className="button button-secondary" onClick={simulateFixAndRevalidate} disabled={busy !== null}>
+                      {busy === 'revalidate' ? <span className="spinner" /> : <Icon name="refresh" />}
+                      {busy === 'revalidate' ? 'Creating corrected revision…' : 'Simulate fix & revalidate'}
+                    </button>
+                  </div>
+                )}
+                {fixedDemo && report.parent_analysis_id && (
+                  <span className="button-hint">Corrected revision of analysis {report.parent_analysis_id.slice(0, 12)} · Bob review required again.</span>
+                )}
               </div>
 
               <div className="panel classification-panel">

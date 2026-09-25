@@ -267,6 +267,11 @@ svg { display: block; }
 .empty-tests { margin: 15px 0; padding: 14px; border: 1px dashed #dfe5ec; border-radius: 5px; color: #8995a6; font-size: 9px; text-align: center; }
 .run-tests-button { width: 100%; min-height: 38px; margin-top: 2px; }
 .button-hint { display: block; margin-top: 8px; color: #9ba4b2; font-size: 8px; text-align: center; }
+.revalidation-action { margin-top: 13px; padding: 12px; border: 1px solid #f0ddd4; border-radius: 6px; background: #fff9f6; }
+.revalidation-action strong { display: block; color: #805747; font-size: 9px; }
+.revalidation-action p { margin: 5px 0 10px; color: #98796d; font-size: 8px; line-height: 1.6; }
+.revalidation-action .button { width: 100%; min-height: 34px; font-size: 9px; }
+.revalidation-action .spinner { border-color: #d2dbe8; border-top-color: #43536b; }
 .test-output-details { margin: 10px 0; border: 1px solid #e7ebf1; border-radius: 5px; }
 .test-output-details summary { padding: 8px 10px; color: #68788e; cursor: pointer; font-size: 9px; font-weight: 600; }
 .test-output { max-height: 250px; overflow: auto; border-top: 1px solid #e7ebf1; background: #19263a; }

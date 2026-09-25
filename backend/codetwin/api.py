@@ -12,7 +12,7 @@ from codetwin.analysis_store import (
     submit_bob_review,
 )
 from codetwin.analyzer import InvalidAnalysisRequest, analyze_repository
-from codetwin.demo_service import create_payment_regression_demo
+from codetwin.demo_service import create_payment_regression_demo, revalidate_payment_regression_demo
 
 
 class AnalyzeRequest(BaseModel):
@@ -67,6 +67,19 @@ def create_payment_regression_analysis() -> dict[str, object]:
         return create_payment_regression_demo()
     except (OSError, RuntimeError, StopIteration) as error:
         raise HTTPException(status_code=500, detail=f"Could not create the payment regression demo: {error}") from error
+
+
+@app.post("/analyses/{analysis_id}/demo-fix")
+def revalidate_payment_regression(analysis_id: str) -> dict[str, object]:
+    try:
+        analysis = revalidate_payment_regression_demo(analysis_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except (OSError, RuntimeError, StopIteration) as error:
+        raise HTTPException(status_code=500, detail=f"Could not create the corrected demo revision: {error}") from error
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return analysis
 
 
 @app.get("/analyses/{analysis_id}")

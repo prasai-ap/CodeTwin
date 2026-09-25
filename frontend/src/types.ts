@@ -52,6 +52,7 @@ export type AnalysisStatus =
 export interface AnalysisReport {
   analysis_id: string;
   demo_scenario?: string;
+  parent_analysis_id?: string;
   status: AnalysisStatus;
   changed_files: string[];
   predicted_impact: PredictedImpact;
