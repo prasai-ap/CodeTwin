@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from codetwin.analyzer import InvalidAnalysisRequest, analyze_repository
 
@@ -64,3 +65,20 @@ class AnalyzerTests(unittest.TestCase):
             with self.subTest(changed_files=changed_files):
                 with self.assertRaises(InvalidAnalysisRequest):
                     analyze_repository(files, changed_files)
+
+
+class EcommerceFixtureTests(unittest.TestCase):
+    def test_payment_change_reaches_order_api_and_targeted_tests(self):
+        project_root = Path(__file__).resolve().parents[2] / "examples" / "ecommerce"
+        files = {
+            path.relative_to(project_root).as_posix(): path.read_text(encoding="utf-8")
+            for path in project_root.rglob("*.py")
+        }
+
+        result = analyze_repository(files, ["app/payments/service.py"])
+        impact = result["predicted_impact"]
+
+        self.assertIn("app/orders/service.py", impact["files"])
+        self.assertIn("app/routes/orders.py", impact["api_files"])
+        self.assertIn("tests/test_payment_workflow.py", impact["tests"])
+        self.assertIn("app/routes/products.py", result["not_affected"])
