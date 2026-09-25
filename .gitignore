@@ -1,0 +1,11 @@
+node_modules/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+dist/
+.env
+.env.*
+!.env.example
+.npm-cache/
+.codetwin-mcp-check/
