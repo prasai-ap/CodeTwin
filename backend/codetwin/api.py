@@ -3,7 +3,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from codetwin.analysis_store import create_analysis, get_analysis, submit_bob_review
+from codetwin.analysis_store import (
+    create_analysis,
+    execute_targeted_tests,
+    get_analysis,
+    submit_bob_review,
+)
 from codetwin.analyzer import InvalidAnalysisRequest, analyze_repository
 
 
@@ -67,6 +72,19 @@ def record_bob_review(analysis_id: str, request: BobReviewRequest) -> dict[str, 
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return analysis
+
+
+@app.post("/analyses/{analysis_id}/run-tests")
+def run_analysis_tests(analysis_id: str) -> dict[str, object]:
+    try:
+        analysis = execute_targeted_tests(analysis_id)
+    except InvalidAnalysisRequest as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return analysis

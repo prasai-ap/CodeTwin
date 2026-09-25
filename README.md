@@ -25,8 +25,8 @@ python -B -m unittest discover -s tests -v
 
 ## IBM Bob review
 
-Open this project in IBM Bob and keep the FastAPI service running. The project MCP server in `.bob/mcp.json` exposes `analyze_change` and `submit_bob_impact_review`. Bob receives the deterministic prediction and source snapshot, inspects the proposed change and its dependents, then returns disjoint lists for Bob-confirmed impact, possible impact, and files not affected. The API keeps Bob's judgment separate from the AST prediction.
+Open this project in IBM Bob and keep the FastAPI service running. The project MCP server in `.bob/mcp.json` exposes `analyze_change`, `submit_bob_impact_review`, and `run_targeted_tests`. Bob receives the deterministic prediction and source snapshot, inspects the proposed change and its dependents, then returns disjoint lists for Bob-confirmed impact, possible impact, and files not affected. Bob then asks CodeTwin to run the targeted tests. The API keeps Bob's judgment separate from the AST prediction.
 
-The demo sessions are held in memory and reset when the API restarts. A Bob review moves an analysis to `awaiting_tests`; it cannot set `safe_to_merge`. Targeted test execution and final merge gating remain to be implemented.
+The demo sessions are held in memory and reset when the API restarts. After Bob reviews the impact, call `POST /analyses/{analysis_id}/run-tests`; CodeTwin runs only the predicted tests from the captured snapshot in a temporary directory. It prefers pytest and falls back to unittest for the self-contained demo. A failed test reports `regression_detected`. CodeTwin reports `safe_to_merge` only when Bob has no unresolved possible impact, there are no Python parse errors, and every targeted test passes.
 
 The analyzer is deterministic and import based. Bob's semantic classifications are agent judgments and are not presented as deterministic analysis.

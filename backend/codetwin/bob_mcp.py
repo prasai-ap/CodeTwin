@@ -68,5 +68,15 @@ def submit_bob_impact_review(
     )
 
 
+@mcp.tool()
+def run_targeted_tests(analysis_id: str) -> dict[str, object]:
+    """Execute CodeTwin's predicted tests after Bob completes its semantic impact review.
+
+    Returns the real targeted test results and merge-gate status. A failed test reports a
+    regression; unresolved possible impact or parse errors also prevent Safe to Merge.
+    """
+    return _post(f"/analyses/{analysis_id}/run-tests", {})
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

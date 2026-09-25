@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from codetwin.analyzer import analyze_repository
+from codetwin.analyzer import _normalize_path, analyze_repository
+from codetwin.test_runner import run_targeted_tests
 
 _sessions: dict[str, dict[str, object]] = {}
+_snapshots: dict[str, dict[str, str]] = {}
 
 
 def create_analysis(files: dict[str, str], changed_files: list[str]) -> dict[str, object]:
@@ -21,6 +23,9 @@ def create_analysis(files: dict[str, str], changed_files: list[str]) -> dict[str
         "safe_to_merge": False,
     }
     _sessions[analysis_id] = analysis
+    _snapshots[analysis_id] = {
+        _normalize_path(path): source for path, source in files.items()
+    }
     return analysis
 
 
@@ -53,6 +58,9 @@ def submit_bob_review(
         raise ValueError("A file can appear in only one Bob classification list")
 
     predicted = analysis["predicted_impact"]["files"]
+    changed = set(analysis["changed_files"])
+    if not changed.issubset(set(confirmed_files)):
+        raise ValueError("Bob must confirm every changed file as impact")
     known_files = set(predicted) | set(analysis["not_affected"])
     submitted = set(all_classified)
     unknown = sorted(submitted - known_files)
@@ -86,5 +94,39 @@ def submit_bob_review(
             for path in sorted(known_files)
         },
     }
+    analysis["test_results"] = {"status": "not_run", "passed": False}
+    analysis["safe_to_merge"] = False
     analysis["status"] = "awaiting_tests"
+    return analysis
+
+
+def execute_targeted_tests(analysis_id: str) -> dict[str, object] | None:
+    analysis = get_analysis(analysis_id)
+    if analysis is None:
+        return None
+    if analysis["bob_review"] is None:
+        raise ValueError("IBM Bob must complete the semantic impact review before tests run")
+
+    impact = analysis["predicted_impact"]
+    result = run_targeted_tests(_snapshots[analysis_id], impact["tests"])
+    analysis["test_results"] = result
+
+    if result["status"] == "no_tests":
+        analysis["status"] = "no_targeted_tests"
+        analysis["safe_to_merge"] = False
+    elif result["status"] in {"error", "timeout"}:
+        analysis["status"] = "test_execution_error"
+        analysis["safe_to_merge"] = False
+    elif not result["passed"]:
+        analysis["status"] = "regression_detected"
+        analysis["safe_to_merge"] = False
+    elif analysis["bob_review"]["possible_impact"]:
+        analysis["status"] = "possible_impact_unresolved"
+        analysis["safe_to_merge"] = False
+    elif analysis["parse_errors"]:
+        analysis["status"] = "analysis_errors"
+        analysis["safe_to_merge"] = False
+    else:
+        analysis["status"] = "safe_to_merge"
+        analysis["safe_to_merge"] = True
     return analysis
