@@ -33,6 +33,13 @@ def get_analysis(analysis_id: str) -> dict[str, object] | None:
     return _sessions.get(analysis_id)
 
 
+def get_analysis_context(analysis_id: str) -> dict[str, object] | None:
+    analysis = get_analysis(analysis_id)
+    if analysis is None:
+        return None
+    return {**analysis, "review_snapshot": _snapshots[analysis_id]}
+
+
 def submit_bob_review(
     analysis_id: str,
     confirmed_files: list[str],

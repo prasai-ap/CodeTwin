@@ -13,12 +13,12 @@ API_URL = os.environ.get("CODETWIN_API_URL", "http://127.0.0.1:8000").rstrip("/"
 mcp = FastMCP("CodeTwin")
 
 
-def _post(path: str, payload: dict[str, object]) -> dict[str, object]:
+def _request(path: str, method: str, payload: dict[str, object] | None = None) -> dict[str, object]:
     request = Request(
         f"{API_URL}{path}",
-        data=json.dumps(payload).encode("utf-8"),
+        data=json.dumps(payload).encode("utf-8") if payload is not None else None,
         headers={"Content-Type": "application/json"},
-        method="POST",
+        method=method,
     )
     try:
         with urlopen(request, timeout=20) as response:
@@ -28,6 +28,10 @@ def _post(path: str, payload: dict[str, object]) -> dict[str, object]:
         raise ValueError(f"CodeTwin API returned HTTP {error.code}: {detail}") from error
     except URLError as error:
         raise ValueError(f"CodeTwin API is unavailable at {API_URL}; start the FastAPI service first") from error
+
+
+def _post(path: str, payload: dict[str, object]) -> dict[str, object]:
+    return _request(path, "POST", payload)
 
 
 @mcp.tool()
@@ -41,6 +45,16 @@ def analyze_change(files: dict[str, str], changed_files: list[str]) -> dict[str,
     analysis = _post("/analyses", {"files": files, "changed_files": changed_files})
     analysis["review_snapshot"] = files
     return analysis
+
+
+@mcp.tool()
+def get_analysis_context(analysis_id: str) -> dict[str, object]:
+    """Load an existing CodeTwin prediction and its exact proposed source snapshot for Bob review.
+
+    Use this when the CodeTwin UI or REST API has already created an analysis, so Bob's semantic
+    review updates the same analysis ID and merge-gate report rather than creating a second session.
+    """
+    return _request(f"/analyses/{analysis_id}/context", "GET")
 
 
 @mcp.tool()

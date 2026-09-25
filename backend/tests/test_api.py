@@ -125,6 +125,47 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
 
+    def test_demo_session_connects_snapshot_bob_review_and_failing_target_tests(self):
+        created = client.post("/demo/payment-regression")
+
+        self.assertEqual(created.status_code, 200)
+        report = created.json()
+        analysis_id = report["analysis_id"]
+        self.assertEqual(report["demo_scenario"], "payment_amount_regression")
+        self.assertIn("app/routes/orders.py", report["predicted_impact"]["api_files"])
+        self.assertIn("tests/test_payment_workflow.py", report["predicted_impact"]["tests"])
+
+        context = client.get(f"/analyses/{analysis_id}/context").json()
+        self.assertIn("amount_cents=amount_cents // 100", context["review_snapshot"]["app/payments/service.py"])
+
+        reviewed = client.post(
+            f"/analyses/{analysis_id}/bob-review",
+            json={
+                "confirmed_files": report["predicted_impact"]["files"],
+                "possible_files": [],
+                "not_affected_files": report["not_affected"],
+                "rationale": "The cents conversion changes checkout charges; the remaining files are unrelated.",
+            },
+        )
+        self.assertEqual(reviewed.status_code, 200)
+        tested = client.post(f"/analyses/{analysis_id}/run-tests", json={})
+
+        self.assertEqual(tested.json()["status"], "regression_detected")
+        self.assertFalse(tested.json()["safe_to_merge"])
+
+    def test_frontend_development_origin_is_allowed(self):
+        response = client.options(
+            "/analyses",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:5173")
+
     def test_passing_tests_do_not_clear_unresolved_possible_impact(self):
         files = {
             "payments.py": "def total_cents(value):\n    return value\n",
