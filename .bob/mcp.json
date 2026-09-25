@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "codetwin": {
+      "command": "python",
+      "args": ["-m", "codetwin.bob_mcp"],
+      "cwd": "backend",
+      "disabled": false
+    }
+  }
+}

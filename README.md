@@ -17,10 +17,16 @@ python -m uvicorn codetwin.api:app --reload
 
 The API is available at `http://127.0.0.1:8000`; interactive docs are at `/docs`. `GET /health` checks the service. `POST /analyze` accepts a repository snapshot as a mapping of relative paths to file contents and a list of changed Python files. It does not read arbitrary paths from the server filesystem.
 
-Install `requirements-dev.txt` to run the test suite with pytest. The tests also work with Python's built-in test runner:
+Install `requirements-dev.txt` to run the test suite with pytest. It includes the MCP SDK used by the IBM Bob integration. The tests also work with Python's built-in test runner:
 
 ```powershell
 python -B -m unittest discover -s tests -v
 ```
 
-The current analyzer is deterministic and import based. IBM Bob semantic validation and execution of targeted tests will be added in later implementation stages; this slice does not claim that a change is safe to merge.
+## IBM Bob review
+
+Open this project in IBM Bob and keep the FastAPI service running. The project MCP server in `.bob/mcp.json` exposes `analyze_change` and `submit_bob_impact_review`. Bob receives the deterministic prediction and source snapshot, inspects the proposed change and its dependents, then returns disjoint lists for Bob-confirmed impact, possible impact, and files not affected. The API keeps Bob's judgment separate from the AST prediction.
+
+The demo sessions are held in memory and reset when the API restarts. A Bob review moves an analysis to `awaiting_tests`; it cannot set `safe_to_merge`. Targeted test execution and final merge gating remain to be implemented.
+
+The analyzer is deterministic and import based. Bob's semantic classifications are agent judgments and are not presented as deterministic analysis.
