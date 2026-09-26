@@ -69,52 +69,65 @@ def analyze_repository(files: Mapping[str, str], changed_files: list[str]) -> di
     symbol_neighbors: dict[str, set[str]] = defaultdict(set)
     importers: dict[str, set[str]] = defaultdict(set)
     for edge in graph.edges:
-        if edge.kind in {"calls", "instantiates", "inherits", "fixture_for"}:
+        if edge.kind in {"calls", "instantiates", "inherits"}:
             symbol_neighbors[edge.source].add(edge.target)
             symbol_neighbors[edge.target].add(edge.source)
         elif edge.kind == "imports":
             importers[edge.target].add(edge.source)
 
     impacted_files = set(normalized_changes)
-    impacted_symbols: set[str] = set()
-    symbol_queue: deque[str] = deque()
-    pending_files: deque[str] = deque(sorted(impacted_files))
-    processed_imports: set[str] = set()
-
-    def include_file_symbols(path: str) -> None:
-        for identifier in sorted(symbols_by_file.get(path, ())):
-            if identifier not in impacted_symbols:
-                impacted_symbols.add(identifier)
-                symbol_queue.append(identifier)
-
-    for path in sorted(impacted_files):
-        include_file_symbols(path)
-
-    while symbol_queue or pending_files:
-        while symbol_queue:
-            current = symbol_queue.popleft()
-            for related in sorted(symbol_neighbors.get(current, ())):
-                if related in impacted_symbols:
-                    continue
+    impacted_symbols = {
+        identifier for identifier, file_path in symbol_to_file.items()
+        if file_path in impacted_files
+    }
+    symbol_queue = deque(sorted(impacted_symbols))
+    while symbol_queue:
+        current = symbol_queue.popleft()
+        for related in sorted(symbol_neighbors.get(current, ())):
+            if related not in impacted_symbols:
                 impacted_symbols.add(related)
                 symbol_queue.append(related)
                 related_file = symbol_to_file.get(related)
-                if related_file and related_file not in impacted_files:
+                if related_file:
                     impacted_files.add(related_file)
-                    pending_files.append(related_file)
-                    include_file_symbols(related_file)
 
-        while pending_files:
-            dependency = pending_files.popleft()
-            if dependency in processed_imports:
-                continue
-            processed_imports.add(dependency)
-            for importer in sorted(importers.get(dependency, ())):
-                if importer in impacted_files:
-                    continue
+    fixture_function_ids = {
+        edge.target for edge in graph.edges if edge.kind == "defines_fixture"
+    }
+    fixture_neighbors: dict[str, set[str]] = defaultdict(set)
+    for edge in graph.edges:
+        if edge.kind == "fixture_for":
+            fixture_neighbors[edge.source].add(edge.target)
+
+    pending_files = deque(sorted(impacted_files))
+    processed_files: set[str] = set()
+    while pending_files:
+        dependency = pending_files.popleft()
+        if dependency in processed_files:
+            continue
+        processed_files.add(dependency)
+
+        for importer in sorted(importers.get(dependency, ())):
+            if importer not in impacted_files:
                 impacted_files.add(importer)
                 pending_files.append(importer)
-                include_file_symbols(importer)
+
+        fixture_queue = deque(sorted(
+            symbols_by_file.get(dependency, set()) & fixture_function_ids
+        ))
+        visited_fixtures: set[str] = set()
+        while fixture_queue:
+            fixture_id = fixture_queue.popleft()
+            if fixture_id in visited_fixtures:
+                continue
+            visited_fixtures.add(fixture_id)
+            for consumer_id in sorted(fixture_neighbors.get(fixture_id, ())):
+                if consumer_id in fixture_function_ids:
+                    fixture_queue.append(consumer_id)
+                consumer_file = symbol_to_file.get(consumer_id)
+                if consumer_file and consumer_file not in impacted_files:
+                    impacted_files.add(consumer_file)
+                    pending_files.append(consumer_file)
 
     predicted_files = sorted(impacted_files)
     tests = [path for path in predicted_files if files_by_path[path].is_test_file]
