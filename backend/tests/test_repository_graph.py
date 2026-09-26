@@ -1,5 +1,5 @@
 from codetwin.analysis_models import APIEndpoint, Class, DependencyEdge, File, Function, Module, Test as TestModel
-from codetwin.analyzer import build_repository_graph
+from codetwin.analyzer import analyze_repository, build_repository_graph
 
 
 def test_repository_graph_contains_typed_nodes_and_evidence_for_relationships():
@@ -153,6 +153,79 @@ def test_relative_aliased_imports_resolve_calls_without_short_name_guessing():
         and item.evidence == "calculate()"
         for item in graph.limitations
     )
+
+
+def test_repository_snapshot_prefix_does_not_break_package_import_resolution():
+    graph = build_repository_graph({
+        "synthetic-checkout/shop/__init__.py": "",
+        "synthetic-checkout/shop/worker.py": (
+            "class Worker:\n"
+            "    def execute(self):\n"
+            "        return True\n"
+        ),
+        "synthetic-checkout/shop/handler.py": (
+            "from shop.worker import Worker\n"
+            "class Handler:\n"
+            "    def __init__(self, worker: Worker | None = None):\n"
+            "        self.worker = worker or Worker()\n"
+            "    def run(self):\n"
+            "        return self.worker.execute()\n"
+        ),
+    })
+
+    import_edge = next(
+        edge for edge in graph.edges
+        if edge.kind == "imports" and edge.source == "synthetic-checkout/shop/handler.py"
+    )
+    call_edge = next(
+        edge for edge in graph.edges
+        if edge.kind == "calls" and edge.source == "synthetic-checkout/shop/handler.py::Handler.run"
+    )
+    assert import_edge.target == "synthetic-checkout/shop/worker.py"
+    assert call_edge.target == "synthetic-checkout/shop/worker.py::Worker.execute"
+    assert call_edge.evidence == "self.worker.execute()"
+
+
+def test_pytest_fixtures_connect_affected_code_to_tests_without_direct_imports():
+    files = {
+        "snapshot-copy/shop/__init__.py": "",
+        "snapshot-copy/shop/domain.py": "def calculate():\n    return 42\n",
+        "snapshot-copy/shop/api.py": (
+            "from shop.domain import calculate\n"
+            "def handle():\n"
+            "    return calculate()\n"
+        ),
+        "snapshot-copy/tests/conftest.py": (
+            "import pytest\n"
+            "from shop.api import handle\n"
+            "@pytest.fixture\n"
+            "def client():\n"
+            "    return handle\n"
+            "@pytest.fixture(autouse=True)\n"
+            "def reset_state():\n"
+            "    return None\n"
+        ),
+        "snapshot-copy/tests/test_api.py": (
+            "def test_handle(client):\n"
+            "    assert client() == 42\n"
+        ),
+    }
+
+    graph = build_repository_graph(files)
+    fixture_edge = next(
+        edge for edge in graph.edges
+        if edge.kind == "fixture_for" and edge.evidence == "client"
+    )
+    autouse_edge = next(
+        edge for edge in graph.edges
+        if edge.kind == "fixture_for" and edge.evidence == "pytest.fixture(autouse=True)"
+    )
+    assert fixture_edge.source == "snapshot-copy/tests/conftest.py::client"
+    assert fixture_edge.target == "test::snapshot-copy/tests/test_api.py::test_handle"
+    assert autouse_edge.target == fixture_edge.target
+
+    report = analyze_repository(files, ["snapshot-copy/shop/domain.py"])
+    assert "snapshot-copy/tests/test_api.py" in report["predicted_impact"]["tests"]
 
 
 def test_dynamic_api_route_path_is_a_limitation_not_a_guessed_endpoint():

@@ -55,44 +55,66 @@ def analyze_repository(files: Mapping[str, str], changed_files: list[str]) -> di
     python_files = {item.path for item in graph.files if item.language == "python"}
     functions = {item.id: item for item in graph.functions}
     classes = {item.id: item for item in graph.classes}
+    tests_by_id = {item.id: item for item in graph.tests}
     symbol_to_file = {
         **{identifier: item.file_id for identifier, item in functions.items()},
         **{identifier: item.file_id for identifier, item in classes.items()},
+        **{identifier: item.file_id for identifier, item in tests_by_id.items()},
         **{item.id: item.file_id for item in graph.modules},
     }
+    symbols_by_file: dict[str, set[str]] = defaultdict(set)
+    for identifier, file_path in symbol_to_file.items():
+        symbols_by_file[file_path].add(identifier)
 
     symbol_neighbors: dict[str, set[str]] = defaultdict(set)
     importers: dict[str, set[str]] = defaultdict(set)
     for edge in graph.edges:
-        if edge.kind in {"calls", "instantiates", "inherits"}:
+        if edge.kind in {"calls", "instantiates", "inherits", "fixture_for"}:
             symbol_neighbors[edge.source].add(edge.target)
             symbol_neighbors[edge.target].add(edge.source)
         elif edge.kind == "imports":
             importers[edge.target].add(edge.source)
 
     impacted_files = set(normalized_changes)
-    impacted_symbols = {
-        identifier for identifier, file_path in symbol_to_file.items()
-        if file_path in impacted_files
-    }
-    symbol_queue = deque(sorted(impacted_symbols))
-    while symbol_queue:
-        current = symbol_queue.popleft()
-        for related in sorted(symbol_neighbors.get(current, ())):
-            if related not in impacted_symbols:
+    impacted_symbols: set[str] = set()
+    symbol_queue: deque[str] = deque()
+    pending_files: deque[str] = deque(sorted(impacted_files))
+    processed_imports: set[str] = set()
+
+    def include_file_symbols(path: str) -> None:
+        for identifier in sorted(symbols_by_file.get(path, ())):
+            if identifier not in impacted_symbols:
+                impacted_symbols.add(identifier)
+                symbol_queue.append(identifier)
+
+    for path in sorted(impacted_files):
+        include_file_symbols(path)
+
+    while symbol_queue or pending_files:
+        while symbol_queue:
+            current = symbol_queue.popleft()
+            for related in sorted(symbol_neighbors.get(current, ())):
+                if related in impacted_symbols:
+                    continue
                 impacted_symbols.add(related)
                 symbol_queue.append(related)
                 related_file = symbol_to_file.get(related)
-                if related_file:
+                if related_file and related_file not in impacted_files:
                     impacted_files.add(related_file)
+                    pending_files.append(related_file)
+                    include_file_symbols(related_file)
 
-    pending_files = deque(sorted(impacted_files))
-    while pending_files:
-        dependency = pending_files.popleft()
-        for importer in sorted(importers.get(dependency, ())):
-            if importer not in impacted_files:
+        while pending_files:
+            dependency = pending_files.popleft()
+            if dependency in processed_imports:
+                continue
+            processed_imports.add(dependency)
+            for importer in sorted(importers.get(dependency, ())):
+                if importer in impacted_files:
+                    continue
                 impacted_files.add(importer)
                 pending_files.append(importer)
+                include_file_symbols(importer)
 
     predicted_files = sorted(impacted_files)
     tests = [path for path in predicted_files if files_by_path[path].is_test_file]

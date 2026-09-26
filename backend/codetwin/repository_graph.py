@@ -46,6 +46,13 @@ def _module_for_path(path: str) -> str | None:
     parts = list(pure_path.with_suffix("").parts)
     if parts[-1] == "__init__":
         parts.pop()
+    # Repository snapshots are sometimes rooted one directory above the Python
+    # source tree (for example, ``snapshot-prefix/package/...``). A leading path
+    # segment that cannot be a Python package is a snapshot prefix, not part of
+    # the importable module name. Preserve valid leading segments so ordinary
+    # package paths such as ``backend/codetwin/...`` keep their full name.
+    while parts and not parts[0].isidentifier():
+        parts.pop(0)
     if not parts or not all(part.isidentifier() for part in parts):
         return None
     return ".".join(parts)
@@ -949,6 +956,82 @@ def _endpoint_nodes(
     return endpoints
 
 
+def _pytest_fixture_bindings(tree: ast.Module) -> tuple[set[str], set[str]]:
+    """Return imported pytest module aliases and direct ``fixture`` aliases."""
+    module_aliases: set[str] = set()
+    fixture_names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                local = alias.asname or alias.name.split(".")[0]
+                if alias.name == "pytest" or alias.name.startswith("pytest."):
+                    module_aliases.add(local)
+                else:
+                    module_aliases.discard(local)
+                fixture_names.discard(local)
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                local = alias.asname or alias.name
+                module_aliases.discard(local)
+                if node.module == "pytest" and alias.name == "fixture":
+                    fixture_names.add(local)
+                else:
+                    fixture_names.discard(local)
+        else:
+            writes = _ModuleBindings()
+            writes.visit(node)
+            module_aliases.difference_update(writes.names)
+            fixture_names.difference_update(writes.names)
+    return module_aliases, fixture_names
+
+
+def _pytest_fixture_options(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+    module_aliases: set[str],
+    fixture_names: set[str],
+) -> tuple[bool, str] | None:
+    for decorator in function.decorator_list:
+        expression = decorator.func if isinstance(decorator, ast.Call) else decorator
+        chain = _attribute_chain(expression)
+        is_fixture = (
+            len(chain) == 1 and chain[0] in fixture_names
+        ) or (
+            len(chain) == 2 and chain[0] in module_aliases and chain[1] == "fixture"
+        )
+        if not is_fixture:
+            continue
+        autouse = isinstance(decorator, ast.Call) and any(
+            keyword.arg == "autouse"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in decorator.keywords
+        )
+        return autouse, ast.unparse(decorator)
+    return None
+
+
+def _fixture_parameter_names(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[str, ...]:
+    return tuple(
+        argument.arg
+        for argument in (*function.args.posonlyargs, *function.args.args, *function.args.kwonlyargs)
+        if argument.arg not in {"self", "cls"}
+    )
+
+
+def _fixture_scope_distance(consumer_path: str, provider_path: str) -> int | None:
+    if consumer_path == provider_path:
+        return 0
+    if PurePosixPath(provider_path).name != "conftest.py":
+        return None
+    consumer_dir = PurePosixPath(consumer_path).parent.parts
+    provider_dir = PurePosixPath(provider_path).parent.parts
+    if consumer_dir[:len(provider_dir)] != provider_dir:
+        return None
+    return len(consumer_dir) - len(provider_dir) + 1
+
+
 def _limitation_key(item: AnalysisLimitation) -> tuple[object, ...]:
     return item.file_id, item.line or 0, item.kind, item.detail, item.evidence or ""
 
@@ -1108,6 +1191,103 @@ def build_repository_graph(files: Mapping[str, str]) -> RepositoryGraph:
                 reason="The function name starts with `test_` inside a test file.",
                 evidence=evidence,
                 line=function.line,
+            ))
+
+    fixture_definitions: dict[
+        str,
+        list[tuple[Function, ast.FunctionDef | ast.AsyncFunctionDef, bool, str]],
+    ] = defaultdict(list)
+    for path, tree in sorted(trees.items()):
+        if PurePosixPath(path).name != "conftest.py" and not _is_test_file(path):
+            continue
+        module_aliases, fixture_names = _pytest_fixture_bindings(tree)
+        for function_id, (function, node) in definitions.items():
+            if function.file_id != path:
+                continue
+            options = _pytest_fixture_options(node, module_aliases, fixture_names)
+            if options is None:
+                continue
+            autouse, decorator = options
+            fixture_definitions[function.name].append((function, node, autouse, decorator))
+            edges.append(DependencyEdge(
+                source=path,
+                target=function.id,
+                kind="defines_fixture",
+                reason="An imported pytest.fixture decorator marks this function as a pytest fixture.",
+                evidence=decorator,
+                line=node.lineno,
+            ))
+
+    def resolve_fixture(
+        consumer_path: str,
+        fixture_name: str,
+    ) -> tuple[Function, ast.FunctionDef | ast.AsyncFunctionDef, bool, str] | None:
+        visible = [
+            (distance, fixture)
+            for fixture in fixture_definitions.get(fixture_name, ())
+            if (distance := _fixture_scope_distance(consumer_path, fixture[0].file_id)) is not None
+        ]
+        if not visible:
+            return None
+        closest = min(distance for distance, _ in visible)
+        matches = [fixture for distance, fixture in visible if distance == closest]
+        if len(matches) != 1:
+            limitations.append(AnalysisLimitation(
+                file_id=consumer_path,
+                kind="ambiguous_fixture",
+                detail=f"Fixture name `{fixture_name}` has multiple equally visible definitions; no fixture edge was selected.",
+                evidence=fixture_name,
+            ))
+            return None
+        return matches[0]
+
+    for fixture_name, definitions_for_name in sorted(fixture_definitions.items()):
+        for function, node, _, _ in definitions_for_name:
+            for dependency_name in _fixture_parameter_names(node):
+                dependency = resolve_fixture(function.file_id, dependency_name)
+                if dependency is None:
+                    continue
+                provider, _, _, _ = dependency
+                edges.append(DependencyEdge(
+                    source=provider.id,
+                    target=function.id,
+                    kind="fixture_for",
+                    reason=f"Pytest injects visible fixture `{dependency_name}` into this fixture function parameter.",
+                    evidence=dependency_name,
+                    line=node.lineno,
+                ))
+
+    for test in test_nodes:
+        test_node = definitions[test.function_id][1]
+        for fixture_name in _fixture_parameter_names(test_node):
+            fixture = resolve_fixture(test.file_id, fixture_name)
+            if fixture is None:
+                continue
+            provider, _, _, _ = fixture
+            edges.append(DependencyEdge(
+                source=provider.id,
+                target=test.id,
+                kind="fixture_for",
+                reason=f"Pytest injects visible fixture `{fixture_name}` into this test function parameter.",
+                evidence=fixture_name,
+                line=test.line,
+            ))
+        visible_fixture_names = sorted({
+            name for name in fixture_definitions
+            if resolve_fixture(test.file_id, name) is not None
+        })
+        for fixture_name in visible_fixture_names:
+            fixture = resolve_fixture(test.file_id, fixture_name)
+            if fixture is None or not fixture[2]:
+                continue
+            provider, _, _, decorator = fixture
+            edges.append(DependencyEdge(
+                source=provider.id,
+                target=test.id,
+                kind="fixture_for",
+                reason=f"Pytest applies autouse fixture `{fixture_name}` to tests in this scope.",
+                evidence=decorator,
+                line=test.line,
             ))
 
     for class_id, (class_node, node) in sorted(class_definitions.items()):
