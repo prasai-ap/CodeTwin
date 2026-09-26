@@ -83,7 +83,7 @@ The intended UI flow creates the session, then Bob reviews its ID. Bob inspects 
 
 ## Frontend architecture
 
-`frontend/` is a React and TypeScript application built with Vite. `App.tsx` owns the analysis session, API requests, polling, test action, and status display. `types.ts` describes the API report shape. `ImpactGraph.tsx` maps dependency edges and evidence into React Flow nodes and edges. `styles.css` contains the responsive dashboard styling.
+`frontend/` is a React and TypeScript application built with Vite. `App.tsx` owns the analysis session, API requests, polling, test action, and status display. `types.ts` describes the API report shape. `ImpactGraph.tsx` maps dependency edges and evidence into an accessible SVG graph with deterministic columns and downstream arrows. `styles.css` contains the responsive dashboard styling. The API origin is supplied at build time through `VITE_API_BASE_URL`; the frontend has no production fallback host.
 
 The UI starts the payment demo, displays the changed file and predicted impact, provides the analysis ID for Bob, and polls while Bob review or test execution is pending. Bob's review and test output are shown in separate sections. Merge status comes from the backend; the frontend does not infer safety on its own.
 

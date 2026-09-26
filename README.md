@@ -31,11 +31,16 @@ python -m uvicorn codetwin.api:app
 
 ### Frontend
 
-Setup and run instructions: _to be documented with the frontend development stage._
+From `frontend/`, install the locked dependencies, create `.env.local`, and set `VITE_API_BASE_URL` to the origin of the running CodeTwin API:
+
+```sh
+npm ci
+npm run dev
+```
 
 ## Validation
 
-Test and build commands: _to be documented with the relevant implementation stages._
+Run backend tests from `backend/` with `python -m pytest -q tests`. Run the frontend TypeScript check and production build from `frontend/` with `npm run build`.
 
 ## IBM Bob
 
