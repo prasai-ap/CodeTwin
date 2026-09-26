@@ -1,1 +1,0 @@
-"""Demo authentication helpers."""

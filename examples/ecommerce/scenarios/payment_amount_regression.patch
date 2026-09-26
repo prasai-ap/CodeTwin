@@ -1,8 +1,0 @@
-diff --git a/app/payments/service.py b/app/payments/service.py
---- a/app/payments/service.py
-+++ b/app/payments/service.py
-@@ -7,3 +7,3 @@ def capture_payment(order_id: str, amount_cents: int) -> dict[str, object]:
-     if amount_cents <= 0:
-         raise ValueError("Payment amount must be positive")
--    return create_payment(order_id=order_id, amount_cents=amount_cents)
-+    return create_payment(order_id=order_id, amount_cents=amount_cents // 100)
