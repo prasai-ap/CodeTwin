@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "codetwin": {
+      "command": "python",
+      "args": ["${workspaceFolder}/backend/run_bob_mcp.py"],
+      "alwaysAllow": [],
+      "disabled": false
+    }
+  }
+}

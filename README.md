@@ -22,7 +22,12 @@ The initial backend, frontend, and synthetic e-commerce example layout is docume
 
 ### Backend
 
-Setup and run instructions: _to be documented with the backend development stage._
+From `backend/`, install the backend and Bob MCP dependencies, then start the API:
+
+```sh
+python -m pip install -r requirements-dev.txt
+python -m uvicorn codetwin.api:app
+```
 
 ### Frontend
 
@@ -34,4 +39,8 @@ Test and build commands: _to be documented with the relevant implementation stag
 
 ## IBM Bob
 
-Project MCP configuration and review workflow: see [ARCHITECTURE.md](ARCHITECTURE.md#ibm-bob-validation-workflow).
+CodeTwin registers a project-scoped stdio MCP server in `.bob/mcp.json` and provides review instructions in `.bob/rules-code/`. The MCP adapter calls the same FastAPI service as the dashboard.
+
+Before opening the project in IBM Bob, set `CODETWIN_API_BASE_URL` in the environment used to launch Bob to the origin of the running CodeTwin API. In Bob's MCP settings, enable the `codetwin` server. Its tools are not auto-approved by project configuration.
+
+Bob's review flow is: inspect the analysis snapshot with `get_analysis_context`, independently classify all analyzed files with `submit_bob_impact_review`, then run `run_targeted_tests`. For a repository Bob is analyzing directly, start with `analyze_change`. Details are in the [architecture guide](ARCHITECTURE.md#ibm-bob-validation-workflow).

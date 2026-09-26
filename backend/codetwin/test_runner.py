@@ -89,6 +89,7 @@ def run_targeted_tests(files: dict[str, str], test_files: list[str]) -> dict[str
                     command,
                     cwd=repository_root,
                     env=environment,
+                    stdin=subprocess.DEVNULL,
                     capture_output=True,
                     text=True,
                     timeout=_TEST_TIMEOUT_SECONDS,

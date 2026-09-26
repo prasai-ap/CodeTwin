@@ -15,7 +15,8 @@
 flowchart LR
     Dev[Developer] --> UI[React and React Flow dashboard]
     UI --> API[FastAPI analysis API]
-    Bob[IBM Bob] <-->|MCP tools| API
+    Bob[IBM Bob] <-->|stdio MCP tools| MCP[CodeTwin MCP adapter]
+    MCP -->|CODETWIN_API_BASE_URL| API
     API --> AST[Python AST analyzer]
     AST --> Graph[Dependency and impact graph]
     API --> Store[In-memory analysis and snapshot store]
@@ -25,13 +26,15 @@ flowchart LR
     API --> UI
 ```
 
-The repository snapshot and changed-file list enter through the API or Bob's `analyze_change` MCP tool. The analyzer creates a prediction and a session. When a session originates in the UI, Bob's `get_analysis_context` tool loads that exact session and snapshot; `submit_bob_impact_review` records Bob's classifications. Bob or the UI can then invoke `run_targeted_tests`. The API derives the final status from recorded evidence.
+The repository snapshot and changed-file list enter through the API or Bob's `analyze_change` MCP tool. Both paths call the same FastAPI service and session store. The analyzer creates a prediction and a session. When a session originates in the UI, Bob's `get_analysis_context` tool loads that exact session and snapshot; `submit_bob_impact_review` records Bob's classifications. Bob or the UI can then invoke `run_targeted_tests`. The API derives the final status from recorded evidence.
 
 ## Backend architecture
 
 ### Analysis API and session store
 
 The FastAPI application in `backend/codetwin/api.py` accepts relative repository paths and UTF-8 source text. It exposes stateless prediction and stateful analysis-session routes. The prototype stores reports and captured snapshots in process memory; restarting the service clears them. A corrected demo run creates a new session linked to its parent so the earlier failure remains inspectable.
+
+IBM Bob launches `backend/run_bob_mcp.py` as a local stdio child process using `.bob/mcp.json`. Since that MCP process is separate from FastAPI, `api_client.py` sends each tool request to the configured `CODETWIN_API_BASE_URL`. The UI and Bob therefore read and update the same API-owned session rather than separate in-memory copies. The API origin is required configuration; the MCP adapter has no built-in host fallback.
 
 `analysis_store.py` coordinates prediction, Bob review, and test execution. It enforces that Bob classifies every analyzed Python file exactly once, that the changed files are Bob-confirmed, and that each classification belongs to the analyzed snapshot. It retains the prediction independently of Bob's review.
 
@@ -59,7 +62,7 @@ Graph nodes represent Python files and resolved functions/methods. Edges capture
 
 ### IBM Bob validation workflow
 
-The project-level `.bob/mcp.json` registers CodeTwin's stdio MCP server. It exposes:
+The project-level `.bob/mcp.json` registers CodeTwin's stdio MCP server. `.bob/rules-code/codetwin-impact-validation.md` guides Bob to use it as an active reviewer. It exposes:
 
 - `analyze_change` to create a prediction from files Bob read in the open repository.
 - `get_analysis_context` to load the exact snapshot and report for an existing UI/API session.
@@ -95,6 +98,7 @@ The checked-in fixture remains the passing baseline. The API applies the regress
 - **Analyzer unit tests:** deterministic output, transitive dependents, API and test classification, invalid paths, and parse errors.
 - **API/session tests:** request validation, report state transitions, complete Bob classifications, CORS, and snapshot retention.
 - **Test-runner tests:** selected test execution, failure/error behavior, timeout/path boundaries, and output reporting.
+- **MCP protocol tests:** tool registration and a separate-process review/test flow through the same FastAPI session store.
 - **E-commerce fixture tests:** baseline checkout behavior passes; the deliberate patch fails the payment workflow assertion; the corrected snapshot passes after a fresh review.
 - **Frontend checks:** TypeScript project build and Vite production build; manually confirm graph, review, test, and merge states against a running API and IBM Bob MCP session.
 
