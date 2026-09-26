@@ -30,8 +30,10 @@ class BobReviewRequest(BaseModel):
     rationale: str = Field(min_length=1, max_length=5000)
 
 
-def create_app(frontend_origins: str | None = None) -> FastAPI:
+def create_app(frontend_origins: str | None = None, demo_only: bool | None = None) -> FastAPI:
     app = FastAPI(title="CodeTwin API", version="0.1.0")
+    if demo_only is None:
+        demo_only = os.getenv("CODETWIN_DEMO_ONLY", "").strip().lower() in {"1", "true", "yes"}
     configured_origins = frontend_origins
     if configured_origins is None:
         configured_origins = os.getenv("FRONTEND_ORIGINS", "")
@@ -50,6 +52,11 @@ def create_app(frontend_origins: str | None = None) -> FastAPI:
 
     @app.post("/analyze")
     def analyze(request: AnalyzeRequest) -> dict[str, object]:
+        if demo_only:
+            raise HTTPException(
+                status_code=403,
+                detail="Generic repository analysis is disabled on the public synthetic demo service",
+            )
         try:
             return create_analysis(request.files, request.changed_files)
         except InvalidAnalysisRequest as error:
@@ -87,6 +94,17 @@ def create_app(frontend_origins: str | None = None) -> FastAPI:
 
     @app.post("/analyses/{analysis_id}/run-tests")
     def run_tests(analysis_id: str) -> dict[str, object]:
+        if demo_only:
+            current = get_analysis(analysis_id)
+            scenario = current.get("demo_scenario") if current else None
+            if not isinstance(scenario, dict) or scenario.get("name") not in {
+                "payment_authorization_regression",
+                "payment_authorization_regression_fixed",
+            }:
+                raise HTTPException(
+                    status_code=403,
+                    detail="The public demo executes tests only for its built-in synthetic payment scenario",
+                )
         try:
             result = execute_targeted_tests(analysis_id)
         except (ValueError, InvalidAnalysisRequest) as error:

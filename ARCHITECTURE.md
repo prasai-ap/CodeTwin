@@ -126,7 +126,7 @@ The checked-in fixture remains the passing baseline. The API applies the regress
 
 ## Deployment architecture
 
-The frontend is built from `frontend/` for Vercel. The backend is a Python web service on Render with a `GET /health` check. The frontend reads its backend origin from `VITE_API_BASE_URL`; the backend reads the allowed frontend origin from environment configuration. Production builds must not use localhost as a fallback. Local development may provide explicit localhost values through ignored environment files. The README will carry the actual public Live Demo URL after deployment succeeds.
+The frontend is built from `frontend/` for Vercel. The backend is a Python web service on Render with a `GET /health` check. The frontend reads its backend origin from `VITE_API_BASE_URL`; the backend reads the allowed frontend origin from environment configuration. Production builds must not use localhost as a fallback. The public Render service runs with `CODETWIN_DEMO_ONLY=true`, restricting source submission and test execution to the checked-in synthetic payment scenario. Local development may use an API origin configured through ignored environment files. The README will carry the actual public Live Demo URL after deployment succeeds.
 
 ## Git workflow
 

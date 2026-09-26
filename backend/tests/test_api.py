@@ -164,3 +164,22 @@ def test_passing_tests_do_not_clear_possible_bob_impact():
     assert result["test_results"]["passed"] is True
     assert result["status"] == "possible_impact_unresolved"
     assert result["safe_to_merge"] is False
+
+
+def test_public_demo_mode_rejects_uploaded_source_and_runs_only_the_synthetic_fixture():
+    client = TestClient(create_app(demo_only=True))
+    arbitrary = client.post("/analyze", json={
+        "files": {
+            "app/main.py": "def run(): return 1\n",
+            "tests/test_main.py": "def test_run(): assert run() == 1\n",
+        },
+        "changed_files": ["app/main.py"],
+    })
+    assert arbitrary.status_code == 403
+    assert "disabled on the public synthetic demo service" in arbitrary.json()["detail"]
+
+    scenario = client.post("/demo/payment-regression")
+    assert scenario.status_code == 200
+    result = client.post(f"/analyses/{scenario.json()['analysis_id']}/run-tests")
+    assert result.status_code == 409
+    assert "IBM Bob must complete semantic review" in result.json()["detail"]

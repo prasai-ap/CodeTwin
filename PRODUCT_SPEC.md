@@ -94,6 +94,7 @@ The demo uses a synthetic FastAPI e-commerce repository with authentication, use
 - The React and TypeScript frontend must build for Vercel.
 - The FastAPI backend must build and run on Render, expose `GET /health`, and allow the configured deployed frontend origin through CORS.
 - API and frontend URLs must come from environment configuration; production code must not depend on a hardcoded localhost URL.
+- The public Render demo runs with `CODETWIN_DEMO_ONLY=true`, which restricts source submission and test execution to the checked-in synthetic payment scenario. Local development keeps generic repository analysis enabled by default.
 - The final README must contain the public Live Demo URL and local run instructions.
 
 ## Git workflow
