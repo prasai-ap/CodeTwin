@@ -155,6 +155,53 @@ def test_relative_aliased_imports_resolve_calls_without_short_name_guessing():
     )
 
 
+def test_chained_constructor_method_calls_resolve_to_declared_repository_method():
+    graph = build_repository_graph({
+        "shop/__init__.py": "",
+        "shop/worker.py": (
+            "class Worker:\n"
+            "    def execute(self):\n"
+            "        return True\n"
+        ),
+        "shop/handler.py": (
+            "from shop.worker import Worker\n"
+            "def run():\n"
+            "    return Worker().execute()\n"
+        ),
+    })
+
+    call = next(
+        edge for edge in graph.edges
+        if edge.kind == "calls" and edge.source == "shop/handler.py::run"
+    )
+    assert call.target == "shop/worker.py::Worker.execute"
+    assert call.evidence == "Worker().execute()"
+    assert "receiver expression" in call.reason
+    assert any(
+        edge.kind == "instantiates"
+        and edge.source == "shop/handler.py::run"
+        and edge.target == "shop/worker.py::Worker"
+        for edge in graph.edges
+    )
+
+
+def test_builtin_call_is_not_reported_as_an_unresolved_repository_call():
+    graph = build_repository_graph({
+        "app/catalog.py": (
+            "class Catalog:\n"
+            "    def list(self):\n"
+            "        return []\n"
+            "def render(values):\n"
+            "    return list(values)\n"
+        ),
+    })
+
+    assert not any(
+        item.kind == "unresolved_internal_call" and item.evidence == "list(values)"
+        for item in graph.limitations
+    )
+
+
 def test_repository_snapshot_prefix_does_not_break_package_import_resolution():
     graph = build_repository_graph({
         "synthetic-checkout/shop/__init__.py": "",

@@ -270,10 +270,11 @@ def predict_impact(graph: RepositoryGraph, change: ProposedChange) -> ImpactPred
             f"Component `{change.component_id}` has kind `{changed.kind}`, not `{change.component_kind}`"
         )
 
-    routes: dict[str, _Route] = {
-        change.component_id: _Route((change.component_id,), ()),
-    }
-    queue = deque([change.component_id])
+    root_route = _Route((change.component_id,), ())
+    routes: dict[str, _Route] = {change.component_id: root_route}
+    root_state = (change.component_id, None)
+    state_routes: dict[tuple[str, str | None], _Route] = {root_state: root_route}
+    queue = deque([root_state])
     if changed.kind != "file" and changed.file_id != change.component_id:
         association = ImpactPathStep(
             source_id=change.component_id,
@@ -283,12 +284,18 @@ def predict_impact(graph: RepositoryGraph, change: ProposedChange) -> ImpactPred
             evidence=change.component_id,
             line=getattr(changed.component, "line", None),
         )
-        routes[changed.file_id] = _Route((change.component_id, changed.file_id), (association,))
-        queue.append(changed.file_id)
+        file_route = _Route((change.component_id, changed.file_id), (association,))
+        routes[changed.file_id] = file_route
+        file_state = (changed.file_id, "upstream")
+        state_routes[file_state] = file_route
+        queue.append(file_state)
 
     adjacency = _adjacency(graph)
+    terminal_nodes: set[str] = set()
     while queue:
-        current_id = queue.popleft()
+        current_id, flow = queue.popleft()
+        if current_id in terminal_nodes:
+            continue
         for traversal in adjacency.get(current_id, ()):
             # A component-scoped change uses its containing file to find importers,
             # but does not imply that every sibling definition changed. A file-level
@@ -308,13 +315,49 @@ def predict_impact(graph: RepositoryGraph, change: ProposedChange) -> ImpactPred
             if (
                 traversal.edge.kind == "defines_method"
                 and traversal.relationship == "defines_method"
-                and changed.kind != "file"
-                and not (changed.kind == "class" and current_id == change.component_id)
+                and not (
+                    (changed.kind == "class" and current_id == change.component_id)
+                    or (
+                        changed.kind == "file"
+                        and current_id in nodes
+                        and nodes[current_id].kind == "class"
+                        and nodes[current_id].file_id == change.component_id
+                    )
+                )
             ):
                 continue
-            if traversal.target_id in routes:
+
+            next_flow = flow
+            if traversal.edge.kind == "calls":
+                if flow is None:
+                    next_flow = "upstream" if traversal.relationship == "called_by" else "downstream"
+                elif flow == "upstream" and traversal.relationship != "called_by":
+                    continue
+                elif flow == "downstream" and traversal.relationship != "calls_dependency":
+                    continue
+            elif flow == "downstream" and traversal.relationship in {
+                "imported_by", "instantiated_by", "subclass_of",
+            }:
+                # A downstream dependency's importers or class constructors are
+                # not consumers of the proposed behavior change. Call edges from
+                # the changed code provide the relevant downstream path.
                 continue
-            previous = routes[current_id]
+            elif flow is None:
+                if traversal.relationship in {
+                    "imported_by", "instantiated_by", "subclass_of", "exposed_by_api",
+                    "member_of_class", "declared_in", "test_in_file",
+                }:
+                    next_flow = "upstream"
+                elif traversal.relationship in {
+                    "defines_module", "defines_function", "defines_class", "defines_method",
+                    "handled_by", "fixture_for", "classified_as_test",
+                }:
+                    next_flow = "downstream"
+
+            next_state = (traversal.target_id, next_flow)
+            if next_state in state_routes:
+                continue
+            previous = state_routes[(current_id, flow)]
             step = ImpactPathStep(
                 source_id=current_id,
                 target_id=traversal.target_id,
@@ -323,11 +366,27 @@ def predict_impact(graph: RepositoryGraph, change: ProposedChange) -> ImpactPred
                 evidence=traversal.edge.evidence,
                 line=traversal.edge.line,
             )
-            routes[traversal.target_id] = _Route(
+            candidate = _Route(
                 (*previous.node_ids, traversal.target_id),
                 (*previous.steps, step),
             )
-            queue.append(traversal.target_id)
+            state_routes[next_state] = candidate
+            existing = routes.get(traversal.target_id)
+            if existing is None or (len(candidate.steps), candidate.node_ids) < (
+                len(existing.steps), existing.node_ids
+            ):
+                routes[traversal.target_id] = candidate
+            if traversal.relationship == "member_of_class":
+                # Keep the owning class visible in the prediction, but do not
+                # fan out from it to every method caller that merely constructs
+                # the same class. Method callers are reached through exact call
+                # edges instead.
+                terminal_nodes.add(traversal.target_id)
+            elif traversal.relationship == "declared_in":
+                # Include the source file as a result, but do not walk from an
+                # affected implementation file into every module that imports it.
+                terminal_nodes.add(traversal.target_id)
+            queue.append(next_state)
 
     # A component is associated with its containing file by the typed model. Extend
     # its path so file-level results retain the dependency chain that reached it.
@@ -378,28 +437,6 @@ def predict_impact(graph: RepositoryGraph, change: ProposedChange) -> ImpactPred
                     (*file_route.node_ids, module.id),
                     (*file_route.steps, step),
                 )
-
-    # Endpoints are attached to handlers in the graph. Also retain an endpoint
-    # declared in a reached API file when its handler could not be resolved as a
-    # function call target; the file membership and route decorator remain evidence.
-    for endpoint in graph.api_endpoints:
-        if endpoint.file_id not in affected_file_paths or endpoint.id in routes:
-            continue
-        file_route = routes.get(endpoint.file_id)
-        if file_route is None:
-            continue
-        step = ImpactPathStep(
-            source_id=endpoint.file_id,
-            target_id=endpoint.id,
-            relationship="declares_api_endpoint",
-            reason="This affected source file declares the API endpoint.",
-            evidence=endpoint.decorator,
-            line=endpoint.line,
-        )
-        routes[endpoint.id] = _Route(
-            (*file_route.node_ids, endpoint.id),
-            (*file_route.steps, step),
-        )
 
     def path_for(component_id: str) -> DependencyPath:
         route = routes[component_id]

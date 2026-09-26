@@ -169,6 +169,80 @@ def test_unrelated_component_is_not_in_the_impact_set(prediction):
     assert all(item.label == PREDICTED_IMPACT for item in prediction.risk_indicators)
 
 
+def test_method_change_does_not_spread_to_sibling_routes_through_shared_class():
+    graph = build_repository_graph({
+        "app/__init__.py": "",
+        "app/service.py": (
+            "class Service:\n"
+            "    def changed(self):\n"
+            "        return 'changed'\n"
+            "    def unrelated(self):\n"
+            "        return 'unrelated'\n"
+        ),
+        "app/auth.py": (
+            "class AuthService:\n"
+            "    def authenticate(self):\n"
+            "        return 'user'\n"
+        ),
+        "app/api.py": (
+            "from fastapi import APIRouter\n"
+            "from app.auth import AuthService\n"
+            "from app.service import Service\n"
+            "router = APIRouter()\n"
+            "@router.post('/change')\n"
+            "def change():\n"
+            "    return Service().changed(), AuthService().authenticate()\n"
+            "@router.get('/unrelated')\n"
+            "def unrelated():\n"
+            "    return Service().unrelated()\n"
+            "@router.get('/profile')\n"
+            "def profile():\n"
+            "    return AuthService().authenticate()\n"
+        ),
+    })
+
+    prediction = predict_impact(
+        graph,
+        ProposedChange("function", "app/service.py::Service.changed"),
+    )
+
+    expected_api = next(
+        endpoint.id for endpoint in graph.api_endpoints
+        if endpoint.handler_id == "app/api.py::change"
+    )
+    assert {
+        item.component_id for item in prediction.affected_apis
+    } == {expected_api}
+    assert "app/api.py::unrelated" not in {
+        item.component_id for item in prediction.affected_functions
+    }
+    assert "app/api.py::profile" not in {
+        item.component_id for item in prediction.affected_functions
+    }
+    assert "app/auth.py::AuthService.authenticate" not in {
+        item.component_id for item in prediction.affected_functions
+    }
+
+
+def test_file_change_includes_methods_declared_in_that_file():
+    graph = build_repository_graph({
+        "app/service.py": (
+            "class Service:\n"
+            "    def run(self):\n"
+            "        return True\n"
+        ),
+    })
+
+    prediction = predict_impact(graph, ProposedChange("file", "app/service.py"))
+
+    assert "app/service.py::Service" in {
+        item.component_id for item in prediction.affected_classes
+    }
+    assert "app/service.py::Service.run" in {
+        item.component_id for item in prediction.affected_functions
+    }
+
+
 def test_class_change_reaches_subclasses_and_instantiating_functions():
     graph = build_repository_graph({
         "app/__init__.py": "",

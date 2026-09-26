@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import posixpath
 import re
 from collections import defaultdict
@@ -649,6 +650,7 @@ def _resolve_call_target(
     current_node: ast.FunctionDef | ast.AsyncFunctionDef | None,
     functions: Mapping[str, Function],
     classes: Mapping[str, Class],
+    classes_by_file_name: Mapping[tuple[str, str], list[Class]],
     module_to_path: Mapping[str, str],
     module_bindings: Mapping[str, tuple[str, int]],
     symbol_bindings: Mapping[str, tuple[str, str]],
@@ -664,6 +666,30 @@ def _resolve_call_target(
         if target_id in classes:
             return target_id, "instantiates", reason
         return None
+
+    # Resolve calls such as ``Service().run()`` only when the constructor binds
+    # uniquely to a repository class and that class declares the named method.
+    # This is a common Python service pattern; treating the outer call as dynamic
+    # loses the concrete API-to-service dependency.
+    if isinstance(called, ast.Attribute) and isinstance(called.value, ast.Call):
+        resolved_class = _class_reference(
+            called.value.func,
+            current.file_id,
+            classes,
+            module_to_path,
+            module_bindings,
+            symbol_bindings,
+            classes_by_file_name,
+        )
+        if resolved_class:
+            class_id, class_reason = resolved_class
+            class_info = classes[class_id]
+            method_id = _id(class_info.file_id, f"{class_info.qualname}.{called.attr}")
+            if method_id in functions:
+                return target_for_id(
+                    method_id,
+                    f"receiver expression `{ast.unparse(called.value)}` creates an instance of `{class_id}`; {class_reason}",
+                )
 
     if isinstance(called, ast.Name):
         if current_node is not None and _function_shadows(current_node, called.id):
@@ -1318,6 +1344,7 @@ def build_repository_graph(files: Mapping[str, str]) -> RepositoryGraph:
                     function_node,
                     functions_by_id,
                     classes_by_id,
+                    classes_by_file_name,
                     module_to_path,
                     module_bindings,
                     symbol_bindings,
@@ -1358,7 +1385,11 @@ def build_repository_graph(files: Mapping[str, str]) -> RepositoryGraph:
                 elif called_name and (
                     any(item.name == called_name for item in functions_by_id.values())
                     or any(item.name == called_name for item in classes_by_id.values())
-                ) and (chain[0] in {"self", "cls"} or chain[0] in module_bindings or isinstance(call.func, ast.Name)):
+                ) and not (isinstance(call.func, ast.Name) and hasattr(builtins, called_name)) and (
+                    chain[0] in {"self", "cls"}
+                    or chain[0] in module_bindings
+                    or isinstance(call.func, ast.Name)
+                ):
                     limitations.append(AnalysisLimitation(
                         file_id=path,
                         kind="unresolved_internal_call",
@@ -1386,6 +1417,7 @@ def build_repository_graph(files: Mapping[str, str]) -> RepositoryGraph:
                 None,
                 functions_by_id,
                 classes_by_id,
+                classes_by_file_name,
                 module_to_path,
                 module_bindings,
                 symbol_bindings,
