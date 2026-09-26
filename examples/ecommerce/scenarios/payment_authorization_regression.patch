@@ -1,0 +1,11 @@
+--- a/app/payments/service.py
++++ b/app/payments/service.py
+@@ -22,3 +22,5 @@
+-        previous, completed = self.payments.transition(payment_id, PaymentStatus.COMPLETED)
+-        self.notifications.on_payment_transition(previous, completed)
+-        return completed
++        previous, authorized = self.payments.transition(payment_id, PaymentStatus.AUTHORIZED)
++        self.notifications.on_payment_transition(previous, authorized)
++        previous, completed = self.payments.transition(payment_id, PaymentStatus.COMPLETED)
++        self.notifications.on_payment_transition(previous, completed)
++        return completed

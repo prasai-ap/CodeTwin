@@ -1,0 +1,9 @@
+--- a/app/notifications/service.py
++++ b/app/notifications/service.py
+@@ -12,2 +12,5 @@
+-        if previous.status == PaymentStatus.PENDING and current.status == PaymentStatus.COMPLETED:
++        if (
++            previous.status in {PaymentStatus.PENDING, PaymentStatus.AUTHORIZED}
++            and current.status == PaymentStatus.COMPLETED
++        ):
+             self.notifications.create_payment_completed(current.user_id, current.order_id)
