@@ -73,14 +73,14 @@ The primary user is a software developer or reviewer working in an existing repo
 
 The demo uses a synthetic FastAPI e-commerce repository with authentication, users, products, orders, payments, notifications, API routes, services, repositories, and tests. The original payment flow transitions `pending → completed`. The proposed change transitions `pending → authorized → completed`, while a downstream notification component still assumes that `completed` follows `pending` directly. A deterministic workflow test catches the stale assumption. After the developer applies a fix, CodeTwin creates a new revision, Bob reviews it again, and the targeted test must pass before the revision can be called safe to merge.
 
-## Success criteria
+## Success metrics
 
-- Repeated analysis of the same snapshot produces the same graph and predicted impact.
-- The demo graph reaches the downstream checkout/API/test files from the payment change.
-- Bob's classifications are complete, disjoint, and visibly distinct from predictions.
-- The payment transition regression is caught by an executed targeted test.
-- The corrected revision can reach **Safe to Merge** only after fresh Bob review and passing targeted tests.
-- A failed or incomplete check always keeps the merge gate closed.
+- **Determinism:** repeated analysis of the same snapshot and changed-file list returns identical graph and impact data.
+- **Fixture path coverage:** tests assert that the seeded payment change reaches its downstream notification, checkout/API, and test files.
+- **Bob review completeness:** the review accepts complete, non-overlapping classifications and displays them separately from predictions.
+- **Regression detection:** the deliberate workflow change produces an actual failing targeted test.
+- **Fix validation:** the corrected revision can reach **Safe to Merge** only after a fresh Bob review and passing targeted tests.
+- **Fail-closed behavior:** missing or failed required checks never produce **Safe to Merge**.
 
 ## Non-goals
 
@@ -88,6 +88,15 @@ The demo uses a synthetic FastAPI e-commerce repository with authentication, use
 - Unnecessary microservices or databases.
 - Large RAG pipelines, custom machine-learning models, or claims that LLM judgments are deterministic.
 - Replacing code review, CI, or a repository's full test suite.
+
+## Limitations
+
+- Static analysis can miss dynamic imports, reflection, generated code, runtime plugin loading, and relationships not expressed in parsed source.
+- Class definitions are listed from predicted files as a conservative file-level signal; the analyzer does not resolve arbitrary inheritance or runtime dispatch.
+- API identification and test selection follow supported syntax and repository conventions, so framework behavior outside those patterns may be missed.
+- IBM Bob's semantic review is a model judgment that can vary. It is not deterministic evidence and does not replace tests.
+- Targeted tests validate only the captured snapshot and selected tests; they do not replace the repository's full CI suite.
+- Analysis sessions are held in process memory and are lost when the backend restarts.
 
 ## Deployment requirements
 

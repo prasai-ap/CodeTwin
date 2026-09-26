@@ -2,34 +2,30 @@
 
 > Know what your code change will break before it breaks production.
 
-## Project overview
+## Problem
 
-CodeTwin is a developer productivity and regression-prevention tool. It is planned to analyze a proposed code change, predict downstream impact, ask IBM Bob to validate that impact, and run targeted tests before reporting merge readiness.
+Changes can affect callers, APIs, classes, and tests beyond the edited files. Reviewers need repository context to find those relationships, while broad test runs can be slow or miss a focused regression.
 
-## Product specification
+## Solution
 
-Placeholder: summarize the problem, target users, workflow, success measures, and product limitations.
+CodeTwin combines deterministic Python repository analysis, an impact graph, IBM Bob's independent semantic review, and targeted test execution. It keeps those evidence sources separate and reports **Safe to Merge** only after required validation passes.
 
-See [PRODUCT_SPEC.md](PRODUCT_SPEC.md).
+## Architecture overview
 
-## Architecture
+The React, TypeScript, and Vite frontend submits a proposed snapshot to a FastAPI backend. Python AST analysis and dependency traversal predict impact. IBM Bob reviews the same snapshot through project MCP tools. A test runner executes selected tests against that snapshot.
 
-Placeholder: summarize the frontend, backend, repository analysis, impact graph, IBM Bob validation, and test execution layers.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries and data flow, and [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for requirements and limitations.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md).
+## Current status
 
-## Demo scenario
+The repository already contains an MVP and a synthetic e-commerce fixture from earlier implementation stages. This foundation stage documents the requested project layout; it does not add application behavior. Public deployment is not yet available.
 
-Placeholder: describe the synthetic e-commerce repository and deliberate payment workflow regression.
+## Planned workflow
 
-## Development
-
-Placeholder: add local setup and run instructions in an implementation stage.
-
-## Testing
-
-Placeholder: document the backend, frontend, and regression-demo checks in an implementation stage.
-
-## Deployment
-
-Placeholder: add deployment instructions and the public demo URL after deployment is configured.
+1. Developer proposes a repository change.
+2. CodeTwin deterministically analyzes Python source and builds an impact graph.
+3. CodeTwin predicts affected files, functions, classes, APIs, components, and tests.
+4. IBM Bob independently inspects the source and validates the predicted impact.
+5. CodeTwin executes targeted tests and reports their actual results.
+6. After a regression, the developer fixes the change and repeats analysis, Bob review, and testing.
+7. CodeTwin reports **Safe to Merge** only when required reviews and checks pass.

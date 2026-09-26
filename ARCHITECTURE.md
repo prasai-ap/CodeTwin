@@ -60,6 +60,10 @@ Symbol resolution is intentionally bounded to statically identifiable Python def
 
 Graph nodes represent Python files and resolved functions/methods. Edges capture file imports and supported symbol references. Analyzer dependency edges point from an importer to its dependency; impact travels in reverse from the changed dependency to downstream importers. The UI draws impact direction and links symbol impacts to their containing files. Node appearance may show Bob's assessment, but predicted membership remains based on deterministic analysis.
 
+### Impact engine
+
+The impact engine starts from explicitly changed files, follows reverse import edges to find downstream files, and follows supported call edges to report reachable functions and methods. It lists class definitions found in predicted files as a conservative file-level signal; this does not claim every class in a file has a direct semantic dependency on the change. API routes and candidate tests are selected from the predicted file set.
+
 ### IBM Bob validation workflow
 
 The project-level `.bob/mcp.json` registers CodeTwin's stdio MCP server. `.bob/rules-code/codetwin-impact-validation.md` guides Bob to use it as an active reviewer. It exposes:
@@ -110,20 +114,30 @@ The checked-in fixture remains the passing baseline. The API applies the regress
 ├── backend/
 │   ├── codetwin/                  # FastAPI, analyzer, session store, MCP server, test runner
 │   └── tests/                     # Backend and API tests
+├── frontend/
+│   └── src/                       # React dashboard, graph, types, and styles
+├── demo-project/
+│   └── .gitkeep                   # Reserved for a future demo-project layout
+├── tests/
+│   └── .gitkeep                   # Reserved for root-level cross-project checks
+├── docs/
+│   └── .gitkeep                   # Reserved for supporting project documents
+├── bob_sessions/
+│   └── .gitkeep                   # Session artifacts stay local and are ignored
 ├── examples/
 │   └── ecommerce/
 │       ├── app/                   # Synthetic FastAPI e-commerce application
 │       ├── tests/                 # Demo API and payment workflow tests
 │       ├── scenarios/             # Deliberate regression patch
 │       └── scripts/               # Regression reproduction helper
-├── frontend/
-│   └── src/                       # React dashboard, graph, types, and styles
 ├── render.yaml                    # Render backend service blueprint
 ├── .python-version                # Render and local Python runtime selection
 ├── ARCHITECTURE.md
 ├── PRODUCT_SPEC.md
 └── README.md
 ```
+
+The requested top-level folders are present. The existing synthetic e-commerce fixture remains under `examples/ecommerce`; moving it to `demo-project/` is a separate implementation decision.
 
 ## Deployment architecture
 
