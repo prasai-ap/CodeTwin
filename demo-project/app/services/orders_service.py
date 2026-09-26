@@ -1,5 +1,5 @@
 from app.models.order import Order, OrderStatus
-from app.models.payment import Payment
+from app.models.payment import Payment, PaymentStatus
 from app.orders.lifecycle import complete_order
 from app.products.inventory import validate_quantity
 from app.repositories.orders import OrdersRepository
@@ -49,8 +49,9 @@ class OrdersService:
             raise ValueError("Order is not pending")
         return order
 
-    def complete_for_payment(self, payment: Payment) -> Order:
-        order = self.validate_payment(payment)
-        completed = self.orders.save(complete_order(order))
-        self.notifications.send_payment_completed(completed)
-        return completed
+    def on_payment_transition(self, previous: Payment, current: Payment) -> Order:
+        order = self.validate_payment(current)
+        if current.status is PaymentStatus.COMPLETED:
+            order = self.orders.save(complete_order(order))
+        self.notifications.on_payment_transition(previous, current, order)
+        return order

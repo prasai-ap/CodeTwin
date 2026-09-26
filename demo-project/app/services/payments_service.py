@@ -1,6 +1,6 @@
 from app.models.order import Order
 from app.models.payment import Payment
-from app.payments.lifecycle import complete_payment
+from app.payments.lifecycle import authorize_payment, complete_payment
 from app.repositories.payments import PaymentsRepository
 from app.services.orders_service import OrdersService
 
@@ -23,6 +23,9 @@ class PaymentsService:
         if payment is None:
             raise LookupError("Payment not found")
         self.orders.validate_payment(payment)
-        completed_payment = self.payments.save(complete_payment(payment))
-        completed_order = self.orders.complete_for_payment(completed_payment)
+        authorized_payment = self.payments.save(authorize_payment(payment))
+        self.orders.on_payment_transition(payment, authorized_payment)
+
+        completed_payment = self.payments.save(complete_payment(authorized_payment))
+        completed_order = self.orders.on_payment_transition(authorized_payment, completed_payment)
         return completed_payment, completed_order

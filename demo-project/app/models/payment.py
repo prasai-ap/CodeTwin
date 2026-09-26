@@ -4,6 +4,7 @@ from enum import StrEnum
 
 class PaymentStatus(StrEnum):
     PENDING = "pending"
+    AUTHORIZED = "authorized"
     COMPLETED = "completed"
 
 
