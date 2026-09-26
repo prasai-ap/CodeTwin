@@ -14,9 +14,16 @@ CodeTwin combines deterministic repository analysis with IBM Bob's repository-aw
 
 ## Target user
 
-The primary user is a software developer or reviewer working in an existing repository who needs to assess a proposed change before merge. The prototype focuses on Python services and test suites, with a synthetic FastAPI e-commerce repository for the demonstration.
+The primary target developer works in an existing repository and needs to understand the downstream impact of a proposed change before merge. Reviewers and maintainers are secondary users. The prototype focuses on Python services and test suites, with a synthetic FastAPI e-commerce repository for the demonstration.
 
-## User workflow
+## Current developer workflow
+
+1. A developer edits code on a branch and opens a review or pull request.
+2. The developer or reviewer searches imports, callers, APIs, and tests to find likely downstream effects.
+3. The developer chooses tests using repository knowledge or runs a broad suite in CI.
+4. Reviewers use code review and test results to decide whether to merge; relationships outside the changed files can still be missed.
+
+## CodeTwin workflow
 
 1. A developer selects a repository and proposes a code change.
 2. CodeTwin parses the supported Python files and records syntax or analysis errors.
@@ -60,8 +67,17 @@ The primary user is a software developer or reviewer working in an existing repo
 - Show the test files, execution status, and useful output.
 - A failing targeted test reports **Regression detected**.
 - Missing targeted tests, test execution errors or timeouts, parse errors, missing Bob review, or unresolved possible impact cannot produce **Safe to Merge**.
+
+### Fix & Validate
+
+- A fix is captured as a new analysis revision linked to the failed revision.
+- Run deterministic analysis, Bob review, and targeted tests again against the new snapshot.
+- Preserve the earlier regression and its test output as evidence.
+
+### Safe to Merge
+
 - Report **Safe to Merge** only after Bob's review is complete, possible impact is resolved, required analysis checks pass, and every selected test passes.
-- A fix is a new analysis revision with fresh review and test evidence; preserve the failed revision as evidence.
+- A prediction or Bob's review alone cannot open the merge gate.
 
 ### User interface
 
@@ -73,7 +89,9 @@ The primary user is a software developer or reviewer working in an existing repo
 
 The demo uses a synthetic FastAPI e-commerce repository with authentication, users, products, orders, payments, notifications, API routes, services, repositories, and tests. The original payment flow transitions `pending → completed`. The proposed change transitions `pending → authorized → completed`, while a downstream notification component still assumes that `completed` follows `pending` directly. A deterministic workflow test catches the stale assumption. After the developer applies a fix, CodeTwin creates a new revision, Bob reviews it again, and the targeted test must pass before the revision can be called safe to merge.
 
-## Success metrics
+## Evaluation and success metrics
+
+Evaluate the prototype with the synthetic repository, whose affected files and deliberate regression are known in advance. Report observed results from executed checks; do not claim production accuracy from this fixture.
 
 - **Determinism:** repeated analysis of the same snapshot and changed-file list returns identical graph and impact data.
 - **Fixture path coverage:** tests assert that the seeded payment change reaches its downstream notification, checkout/API, and test files.
@@ -81,6 +99,13 @@ The demo uses a synthetic FastAPI e-commerce repository with authentication, use
 - **Regression detection:** the deliberate workflow change produces an actual failing targeted test.
 - **Fix validation:** the corrected revision can reach **Safe to Merge** only after a fresh Bob review and passing targeted tests.
 - **Fail-closed behavior:** missing or failed required checks never produce **Safe to Merge**.
+
+## Future work
+
+- Evaluate the analyzer against additional repositories with reviewed impact labels before setting accuracy targets.
+- Improve static relationships for class inheritance, framework conventions, and other Python constructs.
+- Add repository-provider and pull-request integrations only after the local review workflow is validated.
+- Consider persistent session storage if deployment or concurrent use requires sessions to survive restarts.
 
 ## Non-goals
 
