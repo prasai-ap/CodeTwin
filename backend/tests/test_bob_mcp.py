@@ -94,7 +94,7 @@ def test_ibm_bob_stdio_server_supports_review_and_test_workflow():
 
                     created = await session.call_tool("analyze_change", {
                         "files": {
-                            "app/main.py": "def run(): return 4\n",
+                            "app/main.py": "class MainService: pass\ndef run(): return 4\n",
                             "tests/test_main.py": "from app.main import run\ndef test_run(): assert run() == 4\n",
                             "app/other.py": "VALUE = 1\n",
                         },
@@ -109,8 +109,14 @@ def test_ibm_bob_stdio_server_supports_review_and_test_workflow():
                         "get_analysis_context", {"analysis_id": analysis_id}
                     )
                     context = _object_result(context_result)
-                    assert context["review_snapshot"]["app/main.py"] == "def run(): return 4\n"
+                    assert context["review_snapshot"]["app/main.py"] == "class MainService: pass\ndef run(): return 4\n"
                     predicted = context["predicted_impact"]["files"]
+                    assert context["predicted_impact"]["classes"] == [{
+                        "file": "app/main.py",
+                        "qualname": "MainService",
+                        "line": 1,
+                        "id": "app/main.py::MainService",
+                    }]
                     reviewed = await session.call_tool("submit_bob_impact_review", {
                         "analysis_id": analysis_id,
                         "confirmed_files": predicted,

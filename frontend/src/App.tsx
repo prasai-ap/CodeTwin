@@ -367,6 +367,19 @@ export default function App() {
                     ))}
                   </div>
                 ) : <EmptyDetail text="No API route was found in the predicted impact graph." />}
+                <div className="class-impact-block">
+                  <div className="class-impact-heading"><span className="component-label">CLASSES IN PREDICTED FILES</span><span className="heading-count">{analysis.predicted_impact.classes.length}</span></div>
+                  {analysis.predicted_impact.classes.length ? (
+                    <div className="class-impact-list">
+                      {analysis.predicted_impact.classes.map((item) => (
+                        <div className="class-impact-item" key={item.id}>
+                          <code>{item.qualname}</code>
+                          <small>{item.file} · L{item.line}</small>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="class-impact-empty">No class definitions were found in the predicted files.</p>}
+                </div>
                 <div className="component-tags"><span className="component-label">COMPONENTS</span>{analysis.predicted_impact.components.slice(0, 7).map((component) => <span className="component-tag" key={component}>{component}</span>)}</div>
               </article>
             </section>

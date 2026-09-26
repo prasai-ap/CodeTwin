@@ -334,6 +334,13 @@ button:focus-visible, a:focus-visible, [role='button']:focus-visible { outline: 
 .endpoint-info small { overflow: hidden; color: #71818e; font-family: var(--mono); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .endpoint-info small span { padding: 0 3px; color: #4e5d68; }
 .endpoint-impact { color: #84968d; font-family: var(--mono); font-size: 7px; }
+.class-impact-block { margin-top: 11px; padding: 10px 0 0; border-top: 1px solid #25323d; }
+.class-impact-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.class-impact-list { display: grid; max-height: 148px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; overflow: auto; scrollbar-color: #34434e transparent; scrollbar-width: thin; }
+.class-impact-item { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 6px 7px; border: 1px solid #293541; border-radius: 5px; background: rgba(16, 23, 31, .6); }
+.class-impact-item code { overflow: hidden; color: #c3ced8; font-family: var(--mono); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.class-impact-item small { overflow: hidden; color: #768592; font-family: var(--mono); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.class-impact-empty { margin: 0 0 4px; color: #7d8c98; font-size: 9px; }
 .component-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: auto -17px 0; padding: 12px 16px; border-top: 1px solid #25323d; }
 .component-label { margin-right: 3px; color: #748491; font-family: var(--mono); font-size: 7px; letter-spacing: .04em; }
 .component-tag { padding: 4px 6px; border: 1px solid #313c4c; border-radius: 4px; color: #a6b2c2; background: #1a222d; font-family: var(--mono); font-size: 7px; }
@@ -440,6 +447,7 @@ button:focus-visible, a:focus-visible, [role='button']:focus-visible { outline: 
 @media (max-width: 420px) {
   .brand-word { font-size: 17px; }
   .api-indicator { font-size: 9px; }
+  .class-impact-list { grid-template-columns: minmax(0, 1fr); }
   .avatar { width: 27px; height: 27px; }
   .change-card { align-items: flex-start; flex-direction: column; gap: 13px; }
   .analyze-button { width: 100%; }

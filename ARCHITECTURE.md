@@ -45,12 +45,12 @@ IBM Bob launches `backend/run_bob_mcp.py` as a local stdio child process using `
 1. Normalizes and validates repository-relative paths.
 2. Maps Python package/module paths to repository files.
 3. Parses Python files with `ast.parse` and records syntax errors.
-4. Resolves supported absolute and relative `import` and `from ... import ...` relationships that match files in the snapshot.
+4. Collects class definitions, including nested classes, and resolves supported absolute and relative `import` and `from ... import ...` relationships that match files in the snapshot.
 5. Records each dependency edge as **importer → imported dependency**.
 6. Traverses reverse edges from changed files to find downstream importers, including transitive dependents.
 7. Resolves supported function and method definitions/calls into symbol-level edges, associates each impacted symbol with its file, and classifies files as tests, API files, or source files using path and AST heuristics.
 
-The predicted impact includes changed files and their reachable dependents. Tests are selected from those impacted files. Python source files outside that closure are returned as unpredicted files for Bob to assess; they are not automatically declared semantically unaffected.
+The predicted impact includes changed files and their reachable dependents. Class definitions are listed from those predicted files as a conservative file-level signal, not a claim of symbol-level class dependency resolution. Tests are selected from the impacted files. Python source files outside that closure are returned as unpredicted files for Bob to assess; they are not automatically declared semantically unaffected.
 
 Analysis is deterministic for the same normalized snapshot and changed-file list. Static imports cannot reliably expose dynamic imports, runtime plugin loading, reflection, generated code, or every framework convention. API detection is a source heuristic. Parse errors remain explicit and block a safe result.
 

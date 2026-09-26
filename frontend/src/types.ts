@@ -13,6 +13,13 @@ export type ImpactFunction = {
   id: string
 }
 
+export type ImpactClass = {
+  file: string
+  qualname: string
+  line: number
+  id: string
+}
+
 export type ImpactEdge = {
   source: string
   target: string
@@ -65,6 +72,7 @@ export type Analysis = {
   predicted_impact: {
     files: string[]
     functions: ImpactFunction[]
+    classes: ImpactClass[]
     tests: string[]
     api_files: string[]
     api_routes: ApiRoute[]

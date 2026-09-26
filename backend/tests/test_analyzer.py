@@ -70,6 +70,34 @@ def test_function_call_graph_reports_impacted_symbols_and_notification_consumer(
         "path": "/orders/checkout",
         "handler": "checkout",
     } in predicted["api_routes"]
+    class_ids = {item["id"] for item in predicted["classes"]}
+    assert "app/payments/service.py::PaymentService" in class_ids
+    assert "app/notifications/service.py::NotificationsService" in class_ids
+    assert "app/orders/service.py::OrdersService" in class_ids
+
+
+def test_class_impact_is_deterministic_and_limited_to_predicted_files():
+    snapshot = {
+        "app/payments.py": (
+            "class PaymentService:\n"
+            "    def capture(self): return True\n"
+            "    class State:\n"
+            "        pass\n"
+        ),
+        "app/orders.py": "from app.payments import PaymentService\nclass OrderService: pass\n",
+        "app/catalog.py": "class ProductCatalog: pass\n",
+    }
+
+    report = analyze_repository(snapshot, ["app/payments.py"])
+    predicted = report["predicted_impact"]
+    classes = [(item["file"], item["qualname"]) for item in predicted["classes"]]
+
+    assert classes == [
+        ("app/orders.py", "OrderService"),
+        ("app/payments.py", "PaymentService"),
+        ("app/payments.py", "PaymentService.State"),
+    ]
+    assert predicted["classes"] == analyze_repository(snapshot, ["app/payments.py"])["predicted_impact"]["classes"]
 
 
 def test_syntax_errors_are_reported_and_invalid_changed_paths_are_rejected():

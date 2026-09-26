@@ -26,6 +26,17 @@ class FunctionInfo:
         return f"{self.file}::{self.qualname}"
 
 
+@dataclass(frozen=True, order=True)
+class ClassInfo:
+    file: str
+    qualname: str
+    line: int
+
+    @property
+    def node_id(self) -> str:
+        return f"{self.file}::{self.qualname}"
+
+
 def normalize_path(path: str) -> str:
     normalized = posixpath.normpath(path.replace("\\", "/"))
     if (
@@ -115,6 +126,34 @@ def _collect_functions(path: str, tree: ast.Module) -> list[tuple[FunctionInfo, 
 
     visit_body(tree.body)
     return found
+
+
+def _collect_classes(path: str, tree: ast.Module) -> list[ClassInfo]:
+    class Collector(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.parents: list[str] = []
+            self.found: list[ClassInfo] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            class_path = (*self.parents, node.name)
+            self.found.append(ClassInfo(path, ".".join(class_path), node.lineno))
+            self.parents.append(node.name)
+            self.generic_visit(node)
+            self.parents.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.parents.append(node.name)
+            self.generic_visit(node)
+            self.parents.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.parents.append(node.name)
+            self.generic_visit(node)
+            self.parents.pop()
+
+    collector = Collector()
+    collector.visit(tree)
+    return collector.found
 
 
 def _import_bindings(
@@ -344,12 +383,14 @@ def analyze_repository(files: dict[str, str], changed_files: list[str]) -> dict[
     function_nodes: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
     functions_by_file: dict[str, list[FunctionInfo]] = defaultdict(list)
     functions_by_short_name: dict[str, list[FunctionInfo]] = defaultdict(list)
+    classes_by_file: dict[str, list[ClassInfo]] = defaultdict(list)
     for path, tree in trees.items():
         for info, node in _collect_functions(path, tree):
             function_infos[info.node_id] = info
             function_nodes[info.node_id] = node
             functions_by_file[path].append(info)
             functions_by_short_name[node.name].append(info)
+        classes_by_file[path].extend(_collect_classes(path, tree))
 
     call_edges: set[tuple[str, str]] = set()
     callers: dict[str, set[str]] = defaultdict(set)
@@ -407,11 +448,17 @@ def analyze_repository(files: dict[str, str], changed_files: list[str]) -> dict[
         asdict(function_infos[node_id]) | {"id": node_id}
         for node_id in sorted(impacted_functions)
     ]
+    class_results = [
+        asdict(info) | {"id": info.node_id}
+        for path in sorted(impacted_files)
+        for info in sorted(classes_by_file.get(path, ()))
+    ]
     return {
         "changed_files": normalized_changes,
         "predicted_impact": {
             "files": predicted_files,
             "functions": function_results,
+            "classes": class_results,
             "tests": tests,
             "api_files": api_files,
             "api_routes": api_routes,

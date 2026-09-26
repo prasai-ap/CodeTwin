@@ -30,7 +30,7 @@ def test_health_analysis_and_bob_review_are_separate_from_predictions():
 
     response = client.post("/analyze", json={
         "files": {
-            "app/payments.py": "def capture(): return True\n",
+            "app/payments.py": "class PaymentRecord: pass\ndef capture(): return True\n",
             "app/orders.py": "from app.payments import capture\ndef checkout(): return capture()\n",
             "tests/test_orders.py": "from app.orders import checkout\ndef test_checkout(): assert checkout()\n",
             "app/catalog.py": "def list_products(): return []\n",
@@ -43,6 +43,12 @@ def test_health_analysis_and_bob_review_are_separate_from_predictions():
     assert analysis["predicted_impact"]["files"] == [
         "app/orders.py", "app/payments.py", "tests/test_orders.py"
     ]
+    assert analysis["predicted_impact"]["classes"] == [{
+        "file": "app/payments.py",
+        "qualname": "PaymentRecord",
+        "line": 1,
+        "id": "app/payments.py::PaymentRecord",
+    }]
     assert analysis["bob_review"] is None
     assert analysis["safe_to_merge"] is False
     assert client.post(f"/analyses/{analysis['analysis_id']}/run-tests").status_code == 409

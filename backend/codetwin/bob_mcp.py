@@ -10,7 +10,7 @@ mcp = FastMCP(
     "CodeTwin",
     instructions=(
         "Use these tools to independently inspect CodeTwin repository snapshots. "
-        "Predicted impact is deterministic analyzer output; your review is a separate semantic judgment. "
+        "Predicted files, functions, classes, APIs, and tests are deterministic analyzer output; your review is a separate semantic judgment. "
         "For each analysis, inspect the changed source, predicted dependents, and relevant unpredicted files, "
         "then classify every analyzed file exactly once before running targeted tests."
     ),
@@ -30,7 +30,7 @@ def analyze_change(files: dict[str, str], changed_files: list[str]) -> dict[str,
 
 @mcp.tool()
 def get_analysis_context(analysis_id: str) -> dict[str, object]:
-    """Read the exact source snapshot, changed files, prediction, graph, and candidate tests for Bob review.
+    """Read the exact source snapshot, changed files, predicted files/functions/classes/APIs, graph, and tests for Bob review.
 
     Inspect the changed code and relevant predicted and unpredicted files from this snapshot. Do not
     copy the deterministic prediction into Bob's judgment without checking source semantics.

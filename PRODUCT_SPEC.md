@@ -21,7 +21,7 @@ The primary user is a software developer or reviewer working in an existing repo
 1. A developer selects a repository and proposes a code change.
 2. CodeTwin parses the supported Python files and records syntax or analysis errors.
 3. CodeTwin builds a deterministic import dependency graph.
-4. CodeTwin predicts affected files, functions, API routes, components, and relevant tests.
+4. CodeTwin predicts affected files, functions, classes, API routes, components, and relevant tests.
 5. IBM Bob inspects the same proposed snapshot and reviews CodeTwin's prediction using the configured MCP tools.
 6. Bob records each analyzed file as **Bob-confirmed impact**, **possible impact**, or **not affected**, with a rationale.
 7. CodeTwin runs the tests selected from the predicted impact against the captured snapshot.
@@ -43,7 +43,7 @@ The primary user is a software developer or reviewer working in an existing repo
 
 - Analyze a captured repository snapshot and an explicit set of changed files.
 - Use Python AST and deterministic dependency relationships for supported Python analysis.
-- Report dependency edges, transitive downstream impact, API files, components, candidate tests, and parse errors.
+- Report dependency edges, transitive downstream impact, affected function and class definitions, API files, components, candidate tests, and parse errors.
 - Keep analysis reproducible for the same snapshot and changed-file list.
 - State the limits of static analysis. In particular, dynamic imports and relationships that are not expressed in analyzed source may be missed.
 
