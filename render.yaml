@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: codetwin-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn codetwin.api:app --app-dir backend --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: CODETWIN_DEMO_ONLY
+        value: "true"
+      - key: FRONTEND_ORIGINS
+        value: ""

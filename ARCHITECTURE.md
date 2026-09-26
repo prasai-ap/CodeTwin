@@ -119,6 +119,7 @@ The checked-in fixture remains the passing baseline. The API applies the regress
 ├── frontend/
 │   └── src/                       # React dashboard, graph, types, and styles
 ├── render.yaml                    # Render backend service blueprint
+├── .python-version                # Render and local Python runtime selection
 ├── ARCHITECTURE.md
 ├── PRODUCT_SPEC.md
 └── README.md
@@ -126,7 +127,7 @@ The checked-in fixture remains the passing baseline. The API applies the regress
 
 ## Deployment architecture
 
-The frontend is built from `frontend/` for Vercel. The backend is a Python web service on Render with a `GET /health` check. The frontend reads its backend origin from `VITE_API_BASE_URL`; the backend reads the allowed frontend origin from environment configuration. Production builds must not use localhost as a fallback. The public Render service runs with `CODETWIN_DEMO_ONLY=true`, restricting source submission and test execution to the checked-in synthetic payment scenario. Local development may use an API origin configured through ignored environment files. The README will carry the actual public Live Demo URL after deployment succeeds.
+The frontend is built from `frontend/` for Vercel using `frontend/vercel.json`. The backend is a single-instance Python web service on Render described by the root `render.yaml`, with a `GET /health` check. The frontend reads its backend origin from `VITE_API_BASE_URL`; the backend reads the allowed frontend origin from `FRONTEND_ORIGINS`. Production builds must not use localhost as a fallback. The public Render service runs with `CODETWIN_DEMO_ONLY=true`, restricting source submission and test execution to the checked-in synthetic payment scenario. The process-local session store makes public demo sessions temporary. Local development may use an API origin configured through ignored environment files. The README will carry the actual public Live Demo URL after deployment succeeds.
 
 ## Git workflow
 
