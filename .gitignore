@@ -23,8 +23,7 @@ out/
 !.env.example
 .npm-cache/
 .codetwin-mcp-check/
-bob_sessions/*
-!bob_sessions/.gitkeep
+
 .idea/
 .vs/
 .history/
