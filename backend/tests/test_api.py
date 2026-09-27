@@ -298,3 +298,55 @@ def test_analysis_endpoints_return_structured_failure_payloads():
     assert response.status_code == 422
     assert response.json()["status"] == "error"
     assert "Changed files must be Python source files" in response.json()["detail"]
+
+
+def test_repository_analysis_endpoint_handles_unexpected_failures(monkeypatch):
+    client = TestClient(create_app())
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("codetwin.api.run_repository_analysis", _boom)
+
+    response = client.post(
+        "/analyze-repository",
+        json={
+            "files": {"app/main.py": "def run(): return 1\n"},
+            "changed_files": ["app/main.py"],
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "status": "error",
+        "error_code": "repository_analysis_failed",
+        "detail": "Repository analysis failed",
+    }
+
+
+def test_impact_analysis_endpoint_handles_unexpected_failures(monkeypatch):
+    client = TestClient(create_app())
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("codetwin.api.predict_impact", _boom)
+
+    response = client.post(
+        "/analyze-impact",
+        json={
+            "files": {
+                "app/domain.py": "def calculate_total():\n    return 42\n",
+            },
+            "component_kind": "function",
+            "component_id": "app/domain.py::calculate_total",
+            "description": "Change total calculation behavior",
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "status": "error",
+        "error_code": "impact_analysis_failed",
+        "detail": "Impact analysis failed",
+    }
