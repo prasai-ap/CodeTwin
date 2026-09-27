@@ -189,3 +189,112 @@ def test_public_demo_mode_rejects_uploaded_source_and_runs_only_the_synthetic_fi
     result = client.post(f"/analyses/{scenario.json()['analysis_id']}/run-tests")
     assert result.status_code == 409
     assert "IBM Bob must complete semantic review" in result.json()["detail"]
+
+
+def test_health_endpoint_reports_ok_status():
+    client = TestClient(create_app())
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_repository_analysis_endpoint_executes_the_actual_analyzer():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/analyze-repository",
+        json={
+            "files": {
+                "app/main.py": "def run(): return 1\n",
+                "app/service.py": "from app.main import run\ndef invoke(): return run()\n",
+                "tests/test_main.py": "from app.main import run\ndef test_run(): assert run() == 1\n",
+                "app/other.py": "VALUE = 1\n",
+            },
+            "changed_files": ["app/main.py"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["changed_files"] == ["app/main.py"]
+    assert "app/service.py" in body["predicted_impact"]["files"]
+    assert "tests/test_main.py" in body["predicted_impact"]["tests"]
+
+
+def test_impact_analysis_endpoint_executes_the_actual_impact_engine():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/analyze-impact",
+        json={
+            "files": {
+                "app/domain.py": "def calculate_total():\n    return 42\n",
+                "app/service.py": "from app.domain import calculate_total\ndef get_total():\n    return calculate_total()\n",
+                "app/api.py": "from fastapi import APIRouter\nfrom app.service import get_total\nrouter = APIRouter(prefix='/totals')\n@router.get('')\ndef read_total():\n    return get_total()\n",
+                "tests/test_api.py": "from app.api import read_total\ndef test_read_total():\n    assert read_total() == 42\n",
+            },
+            "component_kind": "function",
+            "component_id": "app/domain.py::calculate_total",
+            "description": "Change total calculation behavior",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["proposed_change"]["component_id"] == "app/domain.py::calculate_total"
+    assert any(item["component_id"] == "app/service.py::get_total" for item in body["affected_functions"])
+    assert any(item["component_id"] == "test::tests/test_api.py::test_read_total" for item in body["affected_tests"])
+
+
+def test_repository_analysis_endpoint_rejects_invalid_requests():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/analyze-repository",
+        json={
+            "files": {"app/main.py": "def run(): return 1\n"},
+            "changed_files": [],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "At least one changed file is required" in response.json()["detail"]
+
+
+def test_impact_analysis_endpoint_handles_invalid_component_references():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/analyze-impact",
+        json={
+            "files": {
+                "app/domain.py": "def calculate_total():\n    return 42\n",
+            },
+            "component_kind": "function",
+            "component_id": "app/missing.py::missing",
+            "description": "No such function",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "not present" in response.json()["detail"]
+
+
+def test_analysis_endpoints_return_structured_failure_payloads():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/analyze-repository",
+        json={
+            "files": {"README.md": "this is not python"},
+            "changed_files": ["README.md"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["status"] == "error"
+    assert "Changed files must be Python source files" in response.json()["detail"]
