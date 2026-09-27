@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Analysis, ImpactEdge, ImpactNodeStatus } from './types'
+import type { GraphSnapshot, ImpactEdge, ImpactNodeStatus } from './types'
 
 type LayoutNode = {
   file: string
@@ -31,7 +31,7 @@ function fileFromSymbol(symbol: string) {
   return symbol.split('::', 1)[0]
 }
 
-function graphLayout(analysis: Analysis): Layout {
+function graphLayout(analysis: GraphSnapshot): Layout {
   const impacted = new Set(analysis.predicted_impact.files)
   const paths = [...impacted].sort()
   const adjacency = new Map(paths.map((path) => [path, new Set<string>()]))
@@ -123,14 +123,14 @@ const statusLabel: Record<ImpactNodeStatus, string> = {
 }
 
 type Props = {
-  analysis: Analysis
+  analysis: GraphSnapshot
   selectedFile: string | null
   onSelectFile: (file: string) => void
 }
 
 export default function ImpactGraph({ analysis, selectedFile, onSelectFile }: Props) {
   const layout = useMemo(() => graphLayout(analysis), [analysis])
-  const markerId = `arrow-${analysis.analysis_id}`
+  const markerId = `arrow-${analysis.analysis_id ?? 'local'}`
 
   return (
     <div className="graph-scroll" aria-label="Scrollable impact graph">

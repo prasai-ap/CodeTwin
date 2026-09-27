@@ -24,6 +24,9 @@ export type ImpactEdge = {
   source: string
   target: string
   kind: string
+  reason?: string
+  evidence?: string
+  line?: number | null
 }
 
 export type FileAssessment = {
@@ -93,3 +96,107 @@ export type Analysis = {
 }
 
 export type ImpactNodeStatus = 'changed' | 'predicted' | 'confirmed' | 'possible' | 'not_affected'
+
+export type ApiError = {
+  status: 'error'
+  error_code: string
+  detail: string
+}
+
+export type AnalyzeRepositoryRequest = {
+  files: Record<string, string>
+  changed_files: string[]
+}
+
+export type RepositoryAnalysisResult = {
+  status: 'success'
+  changed_files: string[]
+  predicted_impact: {
+    files: string[]
+    functions: ImpactFunction[]
+    classes: ImpactClass[]
+    tests: string[]
+    api_files: string[]
+    api_routes: ApiRoute[]
+    components: string[]
+  }
+  not_affected: string[]
+  dependency_edges: ImpactEdge[]
+  function_edges: ImpactEdge[]
+  parse_errors: { file: string; message: string | null }[]
+  analysis_limitations: Array<{
+    file_id: string
+    kind: string
+    detail: string
+    line: number | null
+    evidence: string | null
+  }>
+}
+
+export type AnalyzeImpactRequest = {
+  files: Record<string, string>
+  component_kind: 'file' | 'module' | 'function' | 'class' | 'api_endpoint' | 'test'
+  component_id: string
+  description: string
+}
+
+export type DependencyPathStep = {
+  source_id: string
+  target_id: string
+  relationship: string
+  reason: string
+  evidence: string
+  line: number | null
+  label: string
+}
+
+export type DependencyPath = {
+  label: string
+  source_id: string
+  target_id: string
+  node_ids: string[]
+  steps: DependencyPathStep[]
+}
+
+export type ImpactedComponent = {
+  label: string
+  component_kind: string
+  component_id: string
+  reasons: string[]
+  dependency_path: DependencyPath
+}
+
+export type ImpactAnalysisResult = {
+  status: 'success'
+  proposed_change: {
+    component_kind: string
+    component_id: string
+    description: string
+  }
+  affected_files: ImpactedComponent[]
+  affected_modules: ImpactedComponent[]
+  affected_functions: ImpactedComponent[]
+  affected_classes: ImpactedComponent[]
+  affected_apis: ImpactedComponent[]
+  affected_tests: ImpactedComponent[]
+  dependency_paths: DependencyPath[]
+  risk_indicators: Array<{
+    label: string
+    code: string
+    severity: string
+    detail: string
+    file_id: string | null
+    evidence: string | null
+  }>
+}
+
+export type GraphSnapshot = {
+  analysis_id?: string
+  changed_files: string[]
+  predicted_impact: {
+    files: string[]
+  }
+  dependency_edges: ImpactEdge[]
+  function_edges: ImpactEdge[]
+  bob_review?: BobReview | null
+}
