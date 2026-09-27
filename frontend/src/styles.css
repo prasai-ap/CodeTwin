@@ -145,6 +145,17 @@ button:focus {
   gap: 10px;
 }
 
+.stack {
+  display: grid;
+  gap: 10px;
+}
+
+.note {
+  margin: 2px 0 0;
+  color: #9cb2cc;
+  font-size: 12px;
+}
+
 button {
   border: 1px solid #3b628d;
   background: #123156;
@@ -177,6 +188,27 @@ button:disabled {
 .notice-loading { color: #a6d6ff; border-color: rgba(78, 197, 255, 0.45); }
 .notice-empty { color: #aab7ca; }
 .notice-error { color: #ffbcc0; border-color: rgba(240, 111, 114, 0.5); }
+
+.result-banner {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #4f6f94;
+  border-radius: 10px;
+  padding: 11px;
+  background: rgba(22, 51, 81, 0.45);
+}
+
+.result-label {
+  color: #7cd0ff;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.result-subtitle {
+  color: #d5e5f8;
+  font-size: 13px;
+}
 
 .stats {
   display: grid;
@@ -239,6 +271,61 @@ button:disabled {
 
 .list li {
   margin-bottom: 6px;
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.nested-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.nested-list li {
+  margin-bottom: 4px;
+}
+
+.reason {
+  color: #a9bfd8;
+  font-size: 12px;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+.path-list {
+  display: grid;
+  gap: 10px;
+}
+
+.path-item {
+  border: 1px solid #355576;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(11, 29, 49, 0.6);
+}
+
+.path-item header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.path-item header span {
+  color: #89a6c7;
+  font-size: 12px;
+}
+
+.steps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.steps li {
+  margin-bottom: 8px;
+}
+
+.steps li > span {
+  color: #d1e5fb;
   font-family: "JetBrains Mono", "Consolas", monospace;
   font-size: 12px;
 }
